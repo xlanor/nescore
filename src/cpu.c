@@ -335,42 +335,71 @@ void cpu_step(CPU *cpu) {
          *                                 + + - - - -
          * implied         TAX              AA    1      2
          */
-
+        case 0xAA: {
+            cpu->x = cpu->a;
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->x);
+            break;
+        }
         /*
          * TAY - Transfer Accumulator to Index Y
          * A -> Y                          N Z C I D V
          *                                 + + - - - -
          * implied         TAY              A8    1      2
          */
-
+        case 0xA8: {
+            cpu->y = cpu->a;
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->y);
+            break;
+        }
         /*
          * TXA - Transfer Index X to Accumulator
          * X -> A                          N Z C I D V
          *                                 + + - - - -
          * implied         TXA              8A    1      2
          */
-
+        case 0x8A: {
+            cpu->a = cpu->x;
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->a);
+            break;
+        }
         /*
          * TYA - Transfer Index Y to Accumulator
          * Y -> A                          N Z C I D V
          *                                 + + - - - -
          * implied         TYA              98    1      2
          */
-
+        case 0x98: {
+            cpu->a = cpu->y;
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->a);
+            break;
+        }
         /*
          * TSX - Transfer Stack Pointer to Index X
          * SP -> X                         N Z C I D V
          *                                 + + - - - -
          * implied         TSX              BA    1      2
          */
-
+        case 0xBA: {
+            cpu->x = cpu->sp;
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->x);
+            break;
+        }
         /*
          * TXS - Transfer Index X to Stack Pointer
          * X -> SP                         N Z C I D V
          *                                 - - - - - -
          * implied         TXS              9A    1      2
          */
-
+        case 0x9A: {
+            cpu->sp = cpu->x;
+            cpu->cycles += 2;
+            break;
+        }
         /*
          * PHA - Push Accumulator on Stack
          * A -> stack                      N Z C I D V
