@@ -669,8 +669,30 @@ void cpu_step(CPU *cpu) {
          * addressing      assembler       opc  bytes  cycles
          * zeropage        BIT oper         24    2      3
          * absolute        BIT oper         2C    3      4
+         * 
+         * From the site and what I understand..
+         * check A & M to see if the result is 0.
+         * if result is 0, set Z to 1
+         * Also, 
+         * check if 7th bit of M is set. if it is, copy it
+         * check if 6th bit of M is set. if it is, copy it
          */
-
+        case 0x24: {
+            uint8_t val = bus_read(addr_zpg(cpu));
+            if (val & FLAG_N) cpu->status |= FLAG_N; else cpu->status &= ~FLAG_N;
+            if (val & FLAG_V) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            if ((cpu->a & val) == 0) cpu->status |= FLAG_Z; else cpu->status &= ~FLAG_Z;
+            cpu->cycles += 3;
+            break;
+        }
+        case 0x2C: {
+            uint8_t val = bus_read(addr_abs(cpu));
+            if (val & FLAG_N) cpu->status |= FLAG_N; else cpu->status &= ~FLAG_N;
+            if (val & FLAG_V) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            if ((cpu->a & val) == 0) cpu->status |= FLAG_Z; else cpu->status &= ~FLAG_Z;
+            cpu->cycles += 4;
+            break;
+        } 
         /*
          * ADC - Add Memory to Accumulator with Carry
          * A + M + C -> A, C               N Z C I D V
