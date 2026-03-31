@@ -24,13 +24,13 @@ static uint16_t addr_abs(CPU *cpu) { return read16(cpu); }
 static uint16_t addr_abx(CPU *cpu, bool *crossed) {
     uint16_t base = read16(cpu);
     uint16_t addr = base + cpu->x;
-    *crossed = page_crossed(base, addr);
+    if (crossed) *crossed = page_crossed(base, addr);
     return addr;
 }
 static uint16_t addr_aby(CPU *cpu, bool *crossed) {
     uint16_t base = read16(cpu);
     uint16_t addr = base + cpu->y;
-    *crossed = page_crossed(base, addr);
+    if (crossed) *crossed = page_crossed(base, addr);
     return addr;
 }
 static uint16_t addr_izx(CPU *cpu) {
@@ -41,7 +41,7 @@ static uint16_t addr_izy(CPU *cpu, bool *crossed) {
     uint8_t zp = bus_read(cpu->pc++);
     uint16_t base = bus_read(zp) | (bus_read((zp + 1) & 0xFF) << 8);
     uint16_t addr = base + cpu->y;
-    *crossed = page_crossed(base, addr);
+    if (crossed) *crossed = page_crossed(base, addr);
     return addr;
 }
 
@@ -143,7 +143,55 @@ void cpu_step(CPU *cpu) {
             }
             set_zn(cpu, cpu->a);
             break;
-        }  
+        }
+        /*
+         * STA - Store Accumulator in Memory
+         * A -> M                          N Z C I D V
+         *                                 - - - - - -
+         * addressing      assembler       opc  bytes  cycles
+         * zeropage        STA oper         85    2      3
+         * zeropage,X      STA oper,X       95    2      4
+         * absolute        STA oper         8D    3      4
+         * absolute,X      STA oper,X       9D    3      5
+         * absolute,Y      STA oper,Y       99    3      5
+         * (indirect,X)    STA (oper,X)     81    2      6
+         * (indirect),Y    STA (oper),Y     91    2      6
+         */
+        case 0x85: {
+            bus_write(addr_zpg(cpu), cpu->a);
+            cpu->cycles += 3;
+            break; 
+        }
+        case 0x95: {
+            bus_write(addr_zpx(cpu), cpu->a);
+            cpu->cycles += 4;
+            break; 
+        }
+        case 0x8D: {
+            bus_write(addr_abs(cpu), cpu->a);
+            cpu->cycles += 4;
+            break; 
+        }
+        case 0x9D: {
+            bus_write(addr_abx(cpu, NULL), cpu->a);
+            cpu->cycles += 5;
+            break; 
+        }
+        case 0x99: {
+            bus_write(addr_aby(cpu, NULL), cpu->a);
+            cpu->cycles += 5;
+            break; 
+        }
+        case 0x81: {
+            bus_write(addr_izx(cpu), cpu->a);
+            cpu->cycles += 6;
+            break; 
+        }
+        case 0x91: {
+            bus_write(addr_izy(cpu,NULL), cpu->a);
+            cpu->cycles += 6;
+            break; 
+        }
     default:
         fprintf(stderr, "Unknown opcode: %02X at %04X\n", opcode, cpu->pc - 1);
         break;
