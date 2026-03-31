@@ -469,7 +469,61 @@ void cpu_step(CPU *cpu) {
          * (indirect,X)    AND (oper,X)     21    2      6
          * (indirect),Y    AND (oper),Y     31    2      5*
          */
-
+        case 0x29: {
+            cpu -> a = (cpu->a & bus_read(addr_imm(cpu)));
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x25: {
+            cpu -> a = (cpu->a & bus_read(addr_zpg(cpu)));
+            cpu->cycles += 3;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x35: {
+            cpu -> a = (cpu->a & bus_read(addr_zpx(cpu)));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x2D: {
+            cpu -> a = (cpu->a & bus_read(addr_abs(cpu)));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x3D: {
+            bool crossed;
+            cpu -> a = (cpu->a & bus_read(addr_abx(cpu, &crossed)));
+            cpu->cycles += 4;
+            if(crossed) cpu->cycles++;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x39: {
+            bool crossed;
+            cpu -> a = (cpu->a & bus_read(addr_aby(cpu, &crossed)));
+            cpu->cycles += 4;
+            if(crossed) cpu->cycles++;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x21: {
+            cpu -> a = (cpu->a & bus_read(addr_izx(cpu)));
+            cpu->cycles += 6;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x31: {
+            bool crossed;
+            cpu -> a = (cpu->a & bus_read(addr_izy(cpu, &crossed)));
+            cpu->cycles += 5;
+            if(crossed) cpu->cycles++;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        
         /*
          * EOR - Exclusive-OR Memory with Accumulator
          * A EOR M -> A                    N Z C I D V
@@ -484,6 +538,60 @@ void cpu_step(CPU *cpu) {
          * (indirect,X)    EOR (oper,X)     41    2      6
          * (indirect),Y    EOR (oper),Y     51    2      5*
          */
+        case 0x49: {
+            cpu->a ^= bus_read(addr_imm(cpu));
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x45: {
+            cpu->a ^= bus_read(addr_zpg(cpu));
+            cpu->cycles += 3;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x55: {
+            cpu->a ^= bus_read(addr_zpx(cpu));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x4D: {
+            cpu->a ^= bus_read(addr_abs(cpu));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x5D: {
+            bool crossed;
+            cpu->a ^= bus_read(addr_abx(cpu, &crossed));
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x59: {
+            bool crossed;
+            cpu->a ^= bus_read(addr_aby(cpu, &crossed));
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x41: {
+            cpu->a ^= bus_read(addr_izx(cpu));
+            cpu->cycles += 6;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x51: {
+            bool crossed;
+            cpu->a ^= bus_read(addr_izy(cpu, &crossed));
+            cpu->cycles += 5;
+            if (crossed) cpu->cycles++;
+            set_zn(cpu, cpu->a);
+            break;
+        }
 
         /*
          * ORA - OR Memory with Accumulator
@@ -499,6 +607,60 @@ void cpu_step(CPU *cpu) {
          * (indirect,X)    ORA (oper,X)     01    2      6
          * (indirect),Y    ORA (oper),Y     11    2      5*
          */
+        case 0x09: {
+            cpu->a |= bus_read(addr_imm(cpu));
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x05: {
+            cpu->a |= bus_read(addr_zpg(cpu));
+            cpu->cycles += 3;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x15: {
+            cpu->a |= bus_read(addr_zpx(cpu));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x0D: {
+            cpu->a |= bus_read(addr_abs(cpu));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x1D: {
+            bool crossed;
+            cpu->a |= bus_read(addr_abx(cpu, &crossed));
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x19: {
+            bool crossed;
+            cpu->a |= bus_read(addr_aby(cpu, &crossed));
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x01: {
+            cpu->a |= bus_read(addr_izx(cpu));
+            cpu->cycles += 6;
+            set_zn(cpu, cpu->a);
+            break;
+        }
+        case 0x11: {
+            bool crossed;
+            cpu->a |= bus_read(addr_izy(cpu, &crossed));
+            cpu->cycles += 5;
+            if (crossed) cpu->cycles++;
+            set_zn(cpu, cpu->a);
+            break;
+        }
 
         /*
          * BIT - Test Bits in Memory with Accumulator
