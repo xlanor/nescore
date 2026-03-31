@@ -254,7 +254,38 @@ void cpu_step(CPU *cpu) {
          * absolute        LDX oper         AE    3      4
          * absolute,Y      LDX oper,Y       BE    3      4*
          */
-
+        case 0xA2:{
+            cpu->x = bus_read(addr_imm(cpu));
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->x);
+            break;
+        }
+        case 0xA6:{
+            cpu->x = bus_read(addr_zpg(cpu));
+            cpu->cycles += 3;
+            set_zn(cpu, cpu->x);
+            break;
+        }
+        case 0xB6:{
+            cpu->x = bus_read(addr_zpy(cpu));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->x);
+            break;
+        }
+        case 0xAE:{
+            cpu->x = bus_read(addr_abs(cpu));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->x);
+            break;
+        }
+        case 0xBE:{
+            bool crossed;
+            cpu->x = bus_read(addr_aby(cpu, &crossed));
+            cpu->cycles += 4;
+            if (crossed) { cpu->cycles ++; }
+            set_zn(cpu, cpu->x);
+            break;
+        }
         /*
          * LDY - Load Index Y with Memory
          * M -> Y                          N Z C I D V
@@ -266,7 +297,38 @@ void cpu_step(CPU *cpu) {
          * absolute        LDY oper         AC    3      4
          * absolute,X      LDY oper,X       BC    3      4*
          */
-
+        case 0xA0:{
+            cpu->y = bus_read(addr_imm(cpu));
+            cpu->cycles += 2;
+            set_zn(cpu, cpu->y);
+            break;
+        }
+        case 0xA4:{
+            cpu->y = bus_read(addr_zpg(cpu));
+            cpu->cycles += 3;
+            set_zn(cpu, cpu->y);
+            break;
+        }
+        case 0xB4:{
+            cpu->y = bus_read(addr_zpx(cpu));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->y);
+            break;
+        }
+        case 0xAC:{
+            cpu->y = bus_read(addr_abs(cpu));
+            cpu->cycles += 4;
+            set_zn(cpu, cpu->y);
+            break;
+        }
+        case 0xBC:{
+            bool crossed;
+            cpu->y = bus_read(addr_abx(cpu, &crossed));
+            cpu->cycles += 4;
+            if (crossed) { cpu->cycles ++; }
+            set_zn(cpu, cpu->y);
+            break;
+        }
         /*
          * TAX - Transfer Accumulator to Index X
          * A -> X                          N Z C I D V
