@@ -406,28 +406,55 @@ void cpu_step(CPU *cpu) {
          *                                 - - - - - -
          * implied         PHA              48    1      3
          */
-
+        case 0x48: {
+            bus_write(STACK_BASE + cpu->sp, cpu->a);
+            cpu->cycles += 3;
+            cpu->sp--;
+            break;
+        }
         /*
          * PHP - Push Processor Status on Stack
          * status -> stack                 N Z C I D V
          *                                 - - - - - -
          * implied         PHP              08    1      3
+         * https://www.nesdev.org/wiki/Status_flags
+         * B flag per nes dev fom PHP is always 1
+         * guarantee U flag is also set too
          */
-
+        case 0x08: {
+            bus_write(STACK_BASE + cpu->sp, cpu->status | FLAG_B | FLAG_U);
+            cpu->cycles += 3;
+            cpu->sp--;
+            break;
+        }
         /*
          * PLA - Pull Accumulator from Stack
          * stack -> A                      N Z C I D V
          *                                 + + - - - -
          * implied         PLA              68    1      4
          */
-
+        case 0x68: {
+            //pull back up the stack?
+            cpu -> sp++;
+            cpu->a = bus_read(STACK_BASE+cpu->sp);
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            break;
+        }
         /*
          * PLP - Pull Processor Status from Stack
          * stack -> status                 N Z C I D V
          *                                 from stack
          * implied         PLP              28    1      4
          */
-
+        case 0x28: {
+            cpu -> sp++;
+            cpu->status = bus_read(STACK_BASE+cpu->sp);
+            // clear flag B, force flag U
+            cpu->status = (cpu->status & ~FLAG_B ) | FLAG_U;
+            cpu->cycles += 4;
+            break;
+        }
         /*
          * AND - AND Memory with Accumulator
          * A AND M -> A                    N Z C I D V

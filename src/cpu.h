@@ -13,6 +13,8 @@
 #define FLAG_V 0x40  // Overflow
 #define FLAG_N 0x80  // Negative
 
+#define STACK_BASE 0x0100
+
 typedef struct {
     uint16_t pc;     // Program counter
     uint8_t  sp;     // Stack pointer
