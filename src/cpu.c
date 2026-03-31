@@ -20,6 +20,7 @@ static bool page_crossed(uint16_t a, uint16_t b) {
 static uint16_t addr_imm(CPU *cpu) { return cpu->pc++; }
 static uint16_t addr_zpg(CPU *cpu) { return bus_read(cpu->pc++); }
 static uint16_t addr_zpx(CPU *cpu) { return (bus_read(cpu->pc++) + cpu->x) & 0xFF; }
+static uint16_t addr_zpy(CPU *cpu) { return (bus_read(cpu->pc++) + cpu->y) & 0xFF; }
 static uint16_t addr_abs(CPU *cpu) { return read16(cpu); }
 static uint16_t addr_abx(CPU *cpu, bool *crossed) {
     uint16_t base = read16(cpu);
@@ -202,7 +203,21 @@ void cpu_step(CPU *cpu) {
          * zeropage,Y      STX oper,Y       96    2      4
          * absolute        STX oper         8E    3      4
          */
-
+        case 0x86: {
+            bus_write(addr_zpg(cpu), cpu->x);
+            cpu->cycles += 3;
+            break; 
+        }
+        case 0x96: {
+            bus_write(addr_zpy(cpu), cpu->x);
+            cpu->cycles += 4;
+            break; 
+        }
+        case 0x8E: {
+            bus_write(addr_abs(cpu), cpu->x);
+            cpu->cycles += 4;
+            break; 
+        }
         /*
          * STY - Store Index Y in Memory
          * Y -> M                          N Z C I D V
@@ -213,6 +228,21 @@ void cpu_step(CPU *cpu) {
          * absolute        STY oper         8C    3      4
          */
 
+        case 0x84: {
+            bus_write(addr_zpg(cpu), cpu->y);
+            cpu->cycles += 3;
+            break; 
+        }
+        case 0x94: {
+            bus_write(addr_zpx(cpu), cpu->y);
+            cpu->cycles += 4;
+            break; 
+        }
+        case 0x8C: {
+            bus_write(addr_abs(cpu), cpu->y);
+            cpu->cycles += 4;
+            break; 
+        }
         /*
          * LDX - Load Index X with Memory
          * M -> X                          N Z C I D V
