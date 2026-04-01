@@ -3,9 +3,12 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+static void set_flag(CPU *cpu, uint8_t flag, bool cond) {
+    if (cond) cpu->status |= flag; else cpu->status &= ~flag;
+}
 static void set_zn(CPU *cpu, uint8_t val) {
-    if (val == 0) cpu->status |= FLAG_Z; else cpu->status &= ~FLAG_Z;
-    if (val & 0x80) cpu->status |= FLAG_N; else cpu->status &= ~FLAG_N;
+    set_flag(cpu, FLAG_Z, val == 0);
+    set_flag(cpu, FLAG_N, val & 0x80);
 }
 static uint16_t read16(CPU *cpu) {
     uint8_t lo = bus_read(cpu->pc ++);
@@ -679,17 +682,17 @@ void cpu_step(CPU *cpu) {
          */
         case 0x24: {
             uint8_t val = bus_read(addr_zpg(cpu));
-            if (val & FLAG_N) cpu->status |= FLAG_N; else cpu->status &= ~FLAG_N;
-            if (val & FLAG_V) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
-            if ((cpu->a & val) == 0) cpu->status |= FLAG_Z; else cpu->status &= ~FLAG_Z;
+            set_flag(cpu, FLAG_N, val & FLAG_N);
+            set_flag(cpu, FLAG_V, val & FLAG_V);
+            set_flag(cpu, FLAG_Z, (cpu->a & val) == 0);
             cpu->cycles += 3;
             break;
         }
         case 0x2C: {
             uint8_t val = bus_read(addr_abs(cpu));
-            if (val & FLAG_N) cpu->status |= FLAG_N; else cpu->status &= ~FLAG_N;
-            if (val & FLAG_V) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
-            if ((cpu->a & val) == 0) cpu->status |= FLAG_Z; else cpu->status &= ~FLAG_Z;
+            set_flag(cpu, FLAG_N, val & FLAG_N);
+            set_flag(cpu, FLAG_V, val & FLAG_V);
+            set_flag(cpu, FLAG_Z, (cpu->a & val) == 0);
             cpu->cycles += 4;
             break;
         } 
@@ -712,9 +715,9 @@ void cpu_step(CPU *cpu) {
             // store in 16 bits first
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             // set C+ if unsigned overflow (0-255)
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
             // set V+ if signed overflow(-128 to 127)
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             // chop to 8 bits
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
@@ -725,8 +728,8 @@ void cpu_step(CPU *cpu) {
         case 0x65: {
             uint8_t val = bus_read(addr_zpg(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 3;
@@ -735,8 +738,8 @@ void cpu_step(CPU *cpu) {
         case 0x75: {
             uint8_t val = bus_read(addr_zpx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -745,8 +748,8 @@ void cpu_step(CPU *cpu) {
         case 0x6D: {
             uint8_t val = bus_read(addr_abs(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -756,8 +759,8 @@ void cpu_step(CPU *cpu) {
             bool crossed;
             uint8_t val = bus_read(addr_abx(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -768,8 +771,8 @@ void cpu_step(CPU *cpu) {
             bool crossed;
             uint8_t val = bus_read(addr_aby(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -779,8 +782,8 @@ void cpu_step(CPU *cpu) {
         case 0x61: {
             uint8_t val = bus_read(addr_izx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -790,8 +793,8 @@ void cpu_step(CPU *cpu) {
             bool crossed;
             uint8_t val = bus_read(addr_izy(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 5;
@@ -816,8 +819,8 @@ void cpu_step(CPU *cpu) {
         case 0xE9: {
             uint8_t val = ~bus_read(addr_imm(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 2;
@@ -826,8 +829,8 @@ void cpu_step(CPU *cpu) {
         case 0xE5: {
             uint8_t val = ~bus_read(addr_zpg(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 3;
@@ -836,8 +839,8 @@ void cpu_step(CPU *cpu) {
         case 0xF5: {
             uint8_t val = ~bus_read(addr_zpx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -846,8 +849,8 @@ void cpu_step(CPU *cpu) {
         case 0xED: {
             uint8_t val = ~bus_read(addr_abs(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -857,8 +860,8 @@ void cpu_step(CPU *cpu) {
             bool crossed;
             uint8_t val = ~bus_read(addr_abx(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -869,8 +872,8 @@ void cpu_step(CPU *cpu) {
             bool crossed;
             uint8_t val = ~bus_read(addr_aby(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -880,8 +883,8 @@ void cpu_step(CPU *cpu) {
         case 0xE1: {
             uint8_t val = ~bus_read(addr_izx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -891,8 +894,8 @@ void cpu_step(CPU *cpu) {
             bool crossed;
             uint8_t val = ~bus_read(addr_izy(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
-            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
-            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 5;
@@ -914,7 +917,69 @@ void cpu_step(CPU *cpu) {
          * (indirect,X)    CMP (oper,X)     C1    2      6
          * (indirect),Y    CMP (oper),Y     D1    2      5*
          */
-
+        // CMP - all addressing modes
+        case 0xC9: {
+            uint8_t val = bus_read(addr_imm(cpu));
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 2;
+            break;
+        }
+        case 0xC5: {
+            uint8_t val = bus_read(addr_zpg(cpu));
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 3;
+            break;
+        }
+        case 0xD5: {
+            uint8_t val = bus_read(addr_zpx(cpu));
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0xCD: {
+            uint8_t val = bus_read(addr_abs(cpu));
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0xDD: {
+            bool crossed;
+            uint8_t val = bus_read(addr_abx(cpu, &crossed));
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0xD9: {
+            bool crossed;
+            uint8_t val = bus_read(addr_aby(cpu, &crossed));
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0xC1: {
+            uint8_t val = bus_read(addr_izx(cpu));
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xD1: {
+            bool crossed;
+            uint8_t val = bus_read(addr_izy(cpu, &crossed));
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 5;
+            if (crossed) cpu->cycles++;
+            break;
+        }
         /*
          * CPX - Compare Memory and Index X
          * X - M                           N Z C I D V
@@ -924,7 +989,27 @@ void cpu_step(CPU *cpu) {
          * zeropage        CPX oper         E4    2      3
          * absolute        CPX oper         EC    3      4
          */
-
+        case 0xE0: {
+            uint8_t val = bus_read(addr_imm(cpu));
+            set_flag(cpu, FLAG_C, cpu->x >= val);
+            set_zn(cpu, (cpu->x - val) & 0xFF);
+            cpu->cycles += 2;
+            break;
+        }
+        case 0xE4: {
+            uint8_t val = bus_read(addr_zpg(cpu));
+            set_flag(cpu, FLAG_C, cpu->x >= val);
+            set_zn(cpu, (cpu->x - val) & 0xFF);
+            cpu->cycles += 3;
+            break;
+        }
+        case 0xEC: {
+            uint8_t val = bus_read(addr_abs(cpu));
+            set_flag(cpu, FLAG_C, cpu->x >= val);
+            set_zn(cpu, (cpu->x - val) & 0xFF);
+            cpu->cycles += 4;
+            break;
+        }
         /*
          * CPY - Compare Memory and Index Y
          * Y - M                           N Z C I D V
@@ -934,6 +1019,27 @@ void cpu_step(CPU *cpu) {
          * zeropage        CPY oper         C4    2      3
          * absolute        CPY oper         CC    3      4
          */
+        case 0xC0: {
+            uint8_t val = bus_read(addr_imm(cpu));
+            set_flag(cpu, FLAG_C, cpu->y >= val);
+            set_zn(cpu, (cpu->y - val) & 0xFF);
+            cpu->cycles += 2;
+            break;
+        }
+        case 0xC4: {
+            uint8_t val = bus_read(addr_zpg(cpu));
+            set_flag(cpu, FLAG_C, cpu->y >= val);
+            set_zn(cpu, (cpu->y - val) & 0xFF);
+            cpu->cycles += 3;
+            break;
+        }
+        case 0xCC: {
+            uint8_t val = bus_read(addr_abs(cpu));
+            set_flag(cpu, FLAG_C, cpu->y >= val);
+            set_zn(cpu, (cpu->y - val) & 0xFF);
+            cpu->cycles += 4;
+            break;
+        }
 
         /*
          * INC - Increment Memory by One
@@ -945,6 +1051,38 @@ void cpu_step(CPU *cpu) {
          * absolute        INC oper         EE    3      6
          * absolute,X      INC oper,X       FE    3      7
          */
+        case 0xE6: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0xF6: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xEE: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xFE: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 7;
+            break;
+        }
 
         /*
          * DEC - Decrement Memory by One
@@ -956,6 +1094,38 @@ void cpu_step(CPU *cpu) {
          * absolute        DEC oper         CE    3      6
          * absolute,X      DEC oper,X       DE    3      7
          */
+        case 0xC6: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0xD6: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xCE: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xDE: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 7;
+            break;
+        }
 
         /*
          * INX - Increment Index X by One
@@ -963,6 +1133,12 @@ void cpu_step(CPU *cpu) {
          *                                 + + - - - -
          * implied         INX              E8    1      2
          */
+        case 0xE8: {
+            cpu->x++;
+            set_zn(cpu, cpu->x);
+            cpu->cycles += 2;
+            break;
+        }
 
         /*
          * INY - Increment Index Y by One
@@ -970,6 +1146,12 @@ void cpu_step(CPU *cpu) {
          *                                 + + - - - -
          * implied         INY              C8    1      2
          */
+        case 0xC8: {
+            cpu->y++;
+            set_zn(cpu, cpu->y);
+            cpu->cycles += 2;
+            break;
+        }
 
         /*
          * DEX - Decrement Index X by One
@@ -977,6 +1159,12 @@ void cpu_step(CPU *cpu) {
          *                                 + + - - - -
          * implied         DEX              CA    1      2
          */
+        case 0xCA: {
+            cpu->x--;
+            set_zn(cpu, cpu->x);
+            cpu->cycles += 2;
+            break;
+        }
 
         /*
          * DEY - Decrement Index Y by One
@@ -984,6 +1172,12 @@ void cpu_step(CPU *cpu) {
          *                                 + + - - - -
          * implied         DEY              88    1      2
          */
+        case 0x88: {
+            cpu->y--;
+            set_zn(cpu, cpu->y);
+            cpu->cycles += 2;
+            break;
+        }
 
         /*
          * ASL - Shift Left One Bit (Memory or Accumulator)
