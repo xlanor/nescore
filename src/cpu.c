@@ -11,8 +11,8 @@ static void set_zn(CPU *cpu, uint8_t val) {
     set_flag(cpu, FLAG_N, val & BIT7);
 }
 static uint16_t read16(CPU *cpu) {
-    uint8_t lo = bus_read(cpu->pc ++);
-    uint8_t hi = bus_read(cpu->pc ++);
+    uint8_t lo = bus_read(cpu -> bus,cpu->pc ++);
+    uint8_t hi = bus_read(cpu -> bus,cpu->pc ++);
     return (hi << 8) | lo;
 }
 
@@ -21,9 +21,9 @@ static bool page_crossed(uint16_t a, uint16_t b) {
 }
 
 static uint16_t addr_imm(CPU *cpu) { return cpu->pc++; }
-static uint16_t addr_zpg(CPU *cpu) { return bus_read(cpu->pc++); }
-static uint16_t addr_zpx(CPU *cpu) { return (bus_read(cpu->pc++) + cpu->x) & 0xFF; }
-static uint16_t addr_zpy(CPU *cpu) { return (bus_read(cpu->pc++) + cpu->y) & 0xFF; }
+static uint16_t addr_zpg(CPU *cpu) { return bus_read(cpu -> bus,cpu->pc++); }
+static uint16_t addr_zpx(CPU *cpu) { return (bus_read(cpu -> bus,cpu->pc++) + cpu->x) & 0xFF; }
+static uint16_t addr_zpy(CPU *cpu) { return (bus_read(cpu -> bus,cpu->pc++) + cpu->y) & 0xFF; }
 static uint16_t addr_abs(CPU *cpu) { return read16(cpu); }
 static uint16_t addr_abx(CPU *cpu, bool *crossed) {
     uint16_t base = read16(cpu);
@@ -38,12 +38,12 @@ static uint16_t addr_aby(CPU *cpu, bool *crossed) {
     return addr;
 }
 static uint16_t addr_izx(CPU *cpu) {
-    uint8_t zp = (bus_read(cpu->pc++) + cpu->x) & 0xFF;
-    return bus_read(zp) | (bus_read((zp + 1) & 0xFF) << 8);
+    uint8_t zp = (bus_read(cpu -> bus,cpu->pc++) + cpu->x) & 0xFF;
+    return bus_read(cpu -> bus,zp) | (bus_read(cpu -> bus,(zp + 1) & 0xFF) << 8);
 }
 static uint16_t addr_izy(CPU *cpu, bool *crossed) {
-    uint8_t zp = bus_read(cpu->pc++);
-    uint16_t base = bus_read(zp) | (bus_read((zp + 1) & 0xFF) << 8);
+    uint8_t zp = bus_read(cpu -> bus,cpu->pc++);
+    uint16_t base = bus_read(cpu -> bus,zp) | (bus_read(cpu -> bus,(zp + 1) & 0xFF) << 8);
     uint16_t addr = base + cpu->y;
     if (crossed) *crossed = page_crossed(base, addr);
     return addr;
@@ -60,8 +60,8 @@ void cpu_init(CPU *cpu) {
 }
 
 void cpu_reset(CPU *cpu) {
-    uint16_t lo = bus_read(0xFFFC);
-    uint16_t hi = bus_read(0xFFFD);
+    uint16_t lo = bus_read(cpu -> bus,0xFFFC);
+    uint16_t hi = bus_read(cpu -> bus,0xFFFD);
     cpu->pc = (hi << 8) | lo;
     cpu->sp = 0xFD;
     cpu->status = FLAG_U | FLAG_I;
@@ -77,7 +77,7 @@ void cpu_trace(CPU *cpu) {
 }
 
 void cpu_step(CPU *cpu) {
-    uint8_t opcode = bus_read(cpu->pc++);
+    uint8_t opcode = bus_read(cpu -> bus,cpu->pc++);
 
     switch (opcode) {
         // All comments from the tables here:
@@ -97,32 +97,32 @@ void cpu_step(CPU *cpu) {
          * (indirect),Y    LDA (oper),Y     B1    2      5*
          */
         case 0xA9:{
-            cpu->a = bus_read(addr_imm(cpu));
+            cpu->a = bus_read(cpu -> bus,addr_imm(cpu));
             cpu->cycles += 2;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0xA5:{
-            cpu->a = bus_read(addr_zpg(cpu));
+            cpu->a = bus_read(cpu -> bus,addr_zpg(cpu));
             cpu->cycles += 3;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0xB5:{
-            cpu->a = bus_read(addr_zpx(cpu));
+            cpu->a = bus_read(cpu -> bus,addr_zpx(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0xAD:{
-            cpu->a = bus_read(addr_abs(cpu));
+            cpu->a = bus_read(cpu -> bus,addr_abs(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0xBD:{
             bool crossed;
-            cpu->a = bus_read(addr_abx(cpu, &crossed));
+            cpu->a = bus_read(cpu -> bus,addr_abx(cpu, &crossed));
             cpu->cycles += 4;
             if(crossed) {
                 cpu->cycles += 1;
@@ -132,7 +132,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0xB9:{
             bool crossed;
-            cpu->a = bus_read(addr_aby(cpu, &crossed));
+            cpu->a = bus_read(cpu -> bus,addr_aby(cpu, &crossed));
             cpu->cycles += 4;
             if(crossed) {
                 cpu->cycles += 1;
@@ -141,14 +141,14 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0xA1: {
-            cpu ->a = bus_read(addr_izx(cpu));
+            cpu ->a = bus_read(cpu -> bus,addr_izx(cpu));
             cpu->cycles += 6;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0xB1: {
             bool crossed;
-            cpu ->a = bus_read(addr_izy(cpu,&crossed));
+            cpu ->a = bus_read(cpu -> bus,addr_izy(cpu,&crossed));
             cpu->cycles += 5;
             if(crossed) {
                 cpu->cycles += 1;
@@ -170,37 +170,37 @@ void cpu_step(CPU *cpu) {
          * (indirect),Y    STA (oper),Y     91    2      6
          */
         case 0x85: {
-            bus_write(addr_zpg(cpu), cpu->a);
+            bus_write(cpu->bus,addr_zpg(cpu), cpu->a);
             cpu->cycles += 3;
             break; 
         }
         case 0x95: {
-            bus_write(addr_zpx(cpu), cpu->a);
+            bus_write(cpu->bus,addr_zpx(cpu), cpu->a);
             cpu->cycles += 4;
             break; 
         }
         case 0x8D: {
-            bus_write(addr_abs(cpu), cpu->a);
+            bus_write(cpu->bus,addr_abs(cpu), cpu->a);
             cpu->cycles += 4;
             break; 
         }
         case 0x9D: {
-            bus_write(addr_abx(cpu, NULL), cpu->a);
+            bus_write(cpu->bus,addr_abx(cpu, NULL), cpu->a);
             cpu->cycles += 5;
             break; 
         }
         case 0x99: {
-            bus_write(addr_aby(cpu, NULL), cpu->a);
+            bus_write(cpu->bus,addr_aby(cpu, NULL), cpu->a);
             cpu->cycles += 5;
             break; 
         }
         case 0x81: {
-            bus_write(addr_izx(cpu), cpu->a);
+            bus_write(cpu->bus,addr_izx(cpu), cpu->a);
             cpu->cycles += 6;
             break; 
         }
         case 0x91: {
-            bus_write(addr_izy(cpu,NULL), cpu->a);
+            bus_write(cpu->bus,addr_izy(cpu,NULL), cpu->a);
             cpu->cycles += 6;
             break; 
         }
@@ -214,17 +214,17 @@ void cpu_step(CPU *cpu) {
          * absolute        STX oper         8E    3      4
          */
         case 0x86: {
-            bus_write(addr_zpg(cpu), cpu->x);
+            bus_write(cpu->bus,addr_zpg(cpu), cpu->x);
             cpu->cycles += 3;
             break; 
         }
         case 0x96: {
-            bus_write(addr_zpy(cpu), cpu->x);
+            bus_write(cpu->bus,addr_zpy(cpu), cpu->x);
             cpu->cycles += 4;
             break; 
         }
         case 0x8E: {
-            bus_write(addr_abs(cpu), cpu->x);
+            bus_write(cpu->bus,addr_abs(cpu), cpu->x);
             cpu->cycles += 4;
             break; 
         }
@@ -239,17 +239,17 @@ void cpu_step(CPU *cpu) {
          */
 
         case 0x84: {
-            bus_write(addr_zpg(cpu), cpu->y);
+            bus_write(cpu->bus,addr_zpg(cpu), cpu->y);
             cpu->cycles += 3;
             break; 
         }
         case 0x94: {
-            bus_write(addr_zpx(cpu), cpu->y);
+            bus_write(cpu->bus,addr_zpx(cpu), cpu->y);
             cpu->cycles += 4;
             break; 
         }
         case 0x8C: {
-            bus_write(addr_abs(cpu), cpu->y);
+            bus_write(cpu->bus,addr_abs(cpu), cpu->y);
             cpu->cycles += 4;
             break; 
         }
@@ -265,32 +265,32 @@ void cpu_step(CPU *cpu) {
          * absolute,Y      LDX oper,Y       BE    3      4*
          */
         case 0xA2:{
-            cpu->x = bus_read(addr_imm(cpu));
+            cpu->x = bus_read(cpu -> bus,addr_imm(cpu));
             cpu->cycles += 2;
             set_zn(cpu, cpu->x);
             break;
         }
         case 0xA6:{
-            cpu->x = bus_read(addr_zpg(cpu));
+            cpu->x = bus_read(cpu -> bus,addr_zpg(cpu));
             cpu->cycles += 3;
             set_zn(cpu, cpu->x);
             break;
         }
         case 0xB6:{
-            cpu->x = bus_read(addr_zpy(cpu));
+            cpu->x = bus_read(cpu -> bus,addr_zpy(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->x);
             break;
         }
         case 0xAE:{
-            cpu->x = bus_read(addr_abs(cpu));
+            cpu->x = bus_read(cpu -> bus,addr_abs(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->x);
             break;
         }
         case 0xBE:{
             bool crossed;
-            cpu->x = bus_read(addr_aby(cpu, &crossed));
+            cpu->x = bus_read(cpu -> bus,addr_aby(cpu, &crossed));
             cpu->cycles += 4;
             if (crossed) { cpu->cycles ++; }
             set_zn(cpu, cpu->x);
@@ -308,32 +308,32 @@ void cpu_step(CPU *cpu) {
          * absolute,X      LDY oper,X       BC    3      4*
          */
         case 0xA0:{
-            cpu->y = bus_read(addr_imm(cpu));
+            cpu->y = bus_read(cpu -> bus,addr_imm(cpu));
             cpu->cycles += 2;
             set_zn(cpu, cpu->y);
             break;
         }
         case 0xA4:{
-            cpu->y = bus_read(addr_zpg(cpu));
+            cpu->y = bus_read(cpu -> bus,addr_zpg(cpu));
             cpu->cycles += 3;
             set_zn(cpu, cpu->y);
             break;
         }
         case 0xB4:{
-            cpu->y = bus_read(addr_zpx(cpu));
+            cpu->y = bus_read(cpu -> bus,addr_zpx(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->y);
             break;
         }
         case 0xAC:{
-            cpu->y = bus_read(addr_abs(cpu));
+            cpu->y = bus_read(cpu -> bus,addr_abs(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->y);
             break;
         }
         case 0xBC:{
             bool crossed;
-            cpu->y = bus_read(addr_abx(cpu, &crossed));
+            cpu->y = bus_read(cpu -> bus,addr_abx(cpu, &crossed));
             cpu->cycles += 4;
             if (crossed) { cpu->cycles ++; }
             set_zn(cpu, cpu->y);
@@ -417,7 +417,7 @@ void cpu_step(CPU *cpu) {
          * implied         PHA              48    1      3
          */
         case 0x48: {
-            bus_write(STACK_BASE + cpu->sp, cpu->a);
+            bus_write(cpu->bus,STACK_BASE + cpu->sp, cpu->a);
             cpu->cycles += 3;
             cpu->sp--;
             break;
@@ -432,7 +432,7 @@ void cpu_step(CPU *cpu) {
          * guarantee U flag is also set too
          */
         case 0x08: {
-            bus_write(STACK_BASE + cpu->sp, cpu->status | FLAG_B | FLAG_U);
+            bus_write(cpu->bus,STACK_BASE + cpu->sp, cpu->status | FLAG_B | FLAG_U);
             cpu->cycles += 3;
             cpu->sp--;
             break;
@@ -446,7 +446,7 @@ void cpu_step(CPU *cpu) {
         case 0x68: {
             //pull back up the stack?
             cpu -> sp++;
-            cpu->a = bus_read(STACK_BASE+cpu->sp);
+            cpu->a = bus_read(cpu -> bus,STACK_BASE+cpu->sp);
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
             break;
@@ -459,7 +459,7 @@ void cpu_step(CPU *cpu) {
          */
         case 0x28: {
             cpu -> sp++;
-            cpu->status = bus_read(STACK_BASE+cpu->sp);
+            cpu->status = bus_read(cpu -> bus,STACK_BASE+cpu->sp);
             // clear flag B, force flag U
             cpu->status = (cpu->status & ~FLAG_B ) | FLAG_U;
             cpu->cycles += 4;
@@ -480,32 +480,32 @@ void cpu_step(CPU *cpu) {
          * (indirect),Y    AND (oper),Y     31    2      5*
          */
         case 0x29: {
-            cpu -> a = (cpu->a & bus_read(addr_imm(cpu)));
+            cpu -> a = (cpu->a & bus_read(cpu -> bus,addr_imm(cpu)));
             cpu->cycles += 2;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x25: {
-            cpu -> a = (cpu->a & bus_read(addr_zpg(cpu)));
+            cpu -> a = (cpu->a & bus_read(cpu -> bus,addr_zpg(cpu)));
             cpu->cycles += 3;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x35: {
-            cpu -> a = (cpu->a & bus_read(addr_zpx(cpu)));
+            cpu -> a = (cpu->a & bus_read(cpu -> bus,addr_zpx(cpu)));
             cpu->cycles += 4;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x2D: {
-            cpu -> a = (cpu->a & bus_read(addr_abs(cpu)));
+            cpu -> a = (cpu->a & bus_read(cpu -> bus,addr_abs(cpu)));
             cpu->cycles += 4;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x3D: {
             bool crossed;
-            cpu -> a = (cpu->a & bus_read(addr_abx(cpu, &crossed)));
+            cpu -> a = (cpu->a & bus_read(cpu -> bus,addr_abx(cpu, &crossed)));
             cpu->cycles += 4;
             if(crossed) cpu->cycles++;
             set_zn(cpu, cpu->a);
@@ -513,21 +513,21 @@ void cpu_step(CPU *cpu) {
         }
         case 0x39: {
             bool crossed;
-            cpu -> a = (cpu->a & bus_read(addr_aby(cpu, &crossed)));
+            cpu -> a = (cpu->a & bus_read(cpu -> bus,addr_aby(cpu, &crossed)));
             cpu->cycles += 4;
             if(crossed) cpu->cycles++;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x21: {
-            cpu -> a = (cpu->a & bus_read(addr_izx(cpu)));
+            cpu -> a = (cpu->a & bus_read(cpu -> bus,addr_izx(cpu)));
             cpu->cycles += 6;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x31: {
             bool crossed;
-            cpu -> a = (cpu->a & bus_read(addr_izy(cpu, &crossed)));
+            cpu -> a = (cpu->a & bus_read(cpu -> bus,addr_izy(cpu, &crossed)));
             cpu->cycles += 5;
             if(crossed) cpu->cycles++;
             set_zn(cpu, cpu->a);
@@ -549,32 +549,32 @@ void cpu_step(CPU *cpu) {
          * (indirect),Y    EOR (oper),Y     51    2      5*
          */
         case 0x49: {
-            cpu->a ^= bus_read(addr_imm(cpu));
+            cpu->a ^= bus_read(cpu -> bus,addr_imm(cpu));
             cpu->cycles += 2;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x45: {
-            cpu->a ^= bus_read(addr_zpg(cpu));
+            cpu->a ^= bus_read(cpu -> bus,addr_zpg(cpu));
             cpu->cycles += 3;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x55: {
-            cpu->a ^= bus_read(addr_zpx(cpu));
+            cpu->a ^= bus_read(cpu -> bus,addr_zpx(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x4D: {
-            cpu->a ^= bus_read(addr_abs(cpu));
+            cpu->a ^= bus_read(cpu -> bus,addr_abs(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x5D: {
             bool crossed;
-            cpu->a ^= bus_read(addr_abx(cpu, &crossed));
+            cpu->a ^= bus_read(cpu -> bus,addr_abx(cpu, &crossed));
             cpu->cycles += 4;
             if (crossed) cpu->cycles++;
             set_zn(cpu, cpu->a);
@@ -582,21 +582,21 @@ void cpu_step(CPU *cpu) {
         }
         case 0x59: {
             bool crossed;
-            cpu->a ^= bus_read(addr_aby(cpu, &crossed));
+            cpu->a ^= bus_read(cpu -> bus,addr_aby(cpu, &crossed));
             cpu->cycles += 4;
             if (crossed) cpu->cycles++;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x41: {
-            cpu->a ^= bus_read(addr_izx(cpu));
+            cpu->a ^= bus_read(cpu -> bus,addr_izx(cpu));
             cpu->cycles += 6;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x51: {
             bool crossed;
-            cpu->a ^= bus_read(addr_izy(cpu, &crossed));
+            cpu->a ^= bus_read(cpu -> bus,addr_izy(cpu, &crossed));
             cpu->cycles += 5;
             if (crossed) cpu->cycles++;
             set_zn(cpu, cpu->a);
@@ -618,32 +618,32 @@ void cpu_step(CPU *cpu) {
          * (indirect),Y    ORA (oper),Y     11    2      5*
          */
         case 0x09: {
-            cpu->a |= bus_read(addr_imm(cpu));
+            cpu->a |= bus_read(cpu -> bus,addr_imm(cpu));
             cpu->cycles += 2;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x05: {
-            cpu->a |= bus_read(addr_zpg(cpu));
+            cpu->a |= bus_read(cpu -> bus,addr_zpg(cpu));
             cpu->cycles += 3;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x15: {
-            cpu->a |= bus_read(addr_zpx(cpu));
+            cpu->a |= bus_read(cpu -> bus,addr_zpx(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x0D: {
-            cpu->a |= bus_read(addr_abs(cpu));
+            cpu->a |= bus_read(cpu -> bus,addr_abs(cpu));
             cpu->cycles += 4;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x1D: {
             bool crossed;
-            cpu->a |= bus_read(addr_abx(cpu, &crossed));
+            cpu->a |= bus_read(cpu -> bus,addr_abx(cpu, &crossed));
             cpu->cycles += 4;
             if (crossed) cpu->cycles++;
             set_zn(cpu, cpu->a);
@@ -651,21 +651,21 @@ void cpu_step(CPU *cpu) {
         }
         case 0x19: {
             bool crossed;
-            cpu->a |= bus_read(addr_aby(cpu, &crossed));
+            cpu->a |= bus_read(cpu -> bus,addr_aby(cpu, &crossed));
             cpu->cycles += 4;
             if (crossed) cpu->cycles++;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x01: {
-            cpu->a |= bus_read(addr_izx(cpu));
+            cpu->a |= bus_read(cpu -> bus,addr_izx(cpu));
             cpu->cycles += 6;
             set_zn(cpu, cpu->a);
             break;
         }
         case 0x11: {
             bool crossed;
-            cpu->a |= bus_read(addr_izy(cpu, &crossed));
+            cpu->a |= bus_read(cpu -> bus,addr_izy(cpu, &crossed));
             cpu->cycles += 5;
             if (crossed) cpu->cycles++;
             set_zn(cpu, cpu->a);
@@ -688,7 +688,7 @@ void cpu_step(CPU *cpu) {
          * check if 6th bit of M is set. if it is, copy it
          */
         case 0x24: {
-            uint8_t val = bus_read(addr_zpg(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_zpg(cpu));
             set_flag(cpu, FLAG_N, val & FLAG_N);
             set_flag(cpu, FLAG_V, val & FLAG_V);
             set_flag(cpu, FLAG_Z, (cpu->a & val) == 0);
@@ -696,7 +696,7 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0x2C: {
-            uint8_t val = bus_read(addr_abs(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_abs(cpu));
             set_flag(cpu, FLAG_N, val & FLAG_N);
             set_flag(cpu, FLAG_V, val & FLAG_V);
             set_flag(cpu, FLAG_Z, (cpu->a & val) == 0);
@@ -718,7 +718,7 @@ void cpu_step(CPU *cpu) {
          * (indirect),Y    ADC (oper),Y     71    2      5*
          */
         case 0x69: {
-            uint8_t val = bus_read(addr_imm(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_imm(cpu));
             // store in 16 bits first
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             // set C+ if unsigned overflow (0-255)
@@ -733,7 +733,7 @@ void cpu_step(CPU *cpu) {
         }
         // ADC - remaining addressing modes (same logic as 0x69)
         case 0x65: {
-            uint8_t val = bus_read(addr_zpg(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_zpg(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -743,7 +743,7 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0x75: {
-            uint8_t val = bus_read(addr_zpx(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_zpx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -753,7 +753,7 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0x6D: {
-            uint8_t val = bus_read(addr_abs(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_abs(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -764,7 +764,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0x7D: {
             bool crossed;
-            uint8_t val = bus_read(addr_abx(cpu, &crossed));
+            uint8_t val = bus_read(cpu -> bus,addr_abx(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -776,7 +776,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0x79: {
             bool crossed;
-            uint8_t val = bus_read(addr_aby(cpu, &crossed));
+            uint8_t val = bus_read(cpu -> bus,addr_aby(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -787,7 +787,7 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0x61: {
-            uint8_t val = bus_read(addr_izx(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_izx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -798,7 +798,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0x71: {
             bool crossed;
-            uint8_t val = bus_read(addr_izy(cpu, &crossed));
+            uint8_t val = bus_read(cpu -> bus,addr_izy(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -824,7 +824,7 @@ void cpu_step(CPU *cpu) {
          */
         // SBC is A + ~M + C (same as ADC with inverted value)
         case 0xE9: {
-            uint8_t val = ~bus_read(addr_imm(cpu));
+            uint8_t val = ~bus_read(cpu -> bus,addr_imm(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -834,7 +834,7 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0xE5: {
-            uint8_t val = ~bus_read(addr_zpg(cpu));
+            uint8_t val = ~bus_read(cpu -> bus,addr_zpg(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -844,7 +844,7 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0xF5: {
-            uint8_t val = ~bus_read(addr_zpx(cpu));
+            uint8_t val = ~bus_read(cpu -> bus,addr_zpx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -854,7 +854,7 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0xED: {
-            uint8_t val = ~bus_read(addr_abs(cpu));
+            uint8_t val = ~bus_read(cpu -> bus,addr_abs(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -865,7 +865,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0xFD: {
             bool crossed;
-            uint8_t val = ~bus_read(addr_abx(cpu, &crossed));
+            uint8_t val = ~bus_read(cpu -> bus,addr_abx(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -877,7 +877,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0xF9: {
             bool crossed;
-            uint8_t val = ~bus_read(addr_aby(cpu, &crossed));
+            uint8_t val = ~bus_read(cpu -> bus,addr_aby(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -888,7 +888,7 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0xE1: {
-            uint8_t val = ~bus_read(addr_izx(cpu));
+            uint8_t val = ~bus_read(cpu -> bus,addr_izx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -899,7 +899,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0xF1: {
             bool crossed;
-            uint8_t val = ~bus_read(addr_izy(cpu, &crossed));
+            uint8_t val = ~bus_read(cpu -> bus,addr_izy(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -926,28 +926,28 @@ void cpu_step(CPU *cpu) {
          */
         // CMP - all addressing modes
         case 0xC9: {
-            uint8_t val = bus_read(addr_imm(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_imm(cpu));
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 2;
             break;
         }
         case 0xC5: {
-            uint8_t val = bus_read(addr_zpg(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_zpg(cpu));
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 3;
             break;
         }
         case 0xD5: {
-            uint8_t val = bus_read(addr_zpx(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_zpx(cpu));
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 4;
             break;
         }
         case 0xCD: {
-            uint8_t val = bus_read(addr_abs(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_abs(cpu));
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 4;
@@ -955,7 +955,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0xDD: {
             bool crossed;
-            uint8_t val = bus_read(addr_abx(cpu, &crossed));
+            uint8_t val = bus_read(cpu -> bus,addr_abx(cpu, &crossed));
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 4;
@@ -964,7 +964,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0xD9: {
             bool crossed;
-            uint8_t val = bus_read(addr_aby(cpu, &crossed));
+            uint8_t val = bus_read(cpu -> bus,addr_aby(cpu, &crossed));
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 4;
@@ -972,7 +972,7 @@ void cpu_step(CPU *cpu) {
             break;
         }
         case 0xC1: {
-            uint8_t val = bus_read(addr_izx(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_izx(cpu));
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 6;
@@ -980,7 +980,7 @@ void cpu_step(CPU *cpu) {
         }
         case 0xD1: {
             bool crossed;
-            uint8_t val = bus_read(addr_izy(cpu, &crossed));
+            uint8_t val = bus_read(cpu -> bus,addr_izy(cpu, &crossed));
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 5;
@@ -997,21 +997,21 @@ void cpu_step(CPU *cpu) {
          * absolute        CPX oper         EC    3      4
          */
         case 0xE0: {
-            uint8_t val = bus_read(addr_imm(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_imm(cpu));
             set_flag(cpu, FLAG_C, cpu->x >= val);
             set_zn(cpu, (cpu->x - val) & 0xFF);
             cpu->cycles += 2;
             break;
         }
         case 0xE4: {
-            uint8_t val = bus_read(addr_zpg(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_zpg(cpu));
             set_flag(cpu, FLAG_C, cpu->x >= val);
             set_zn(cpu, (cpu->x - val) & 0xFF);
             cpu->cycles += 3;
             break;
         }
         case 0xEC: {
-            uint8_t val = bus_read(addr_abs(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_abs(cpu));
             set_flag(cpu, FLAG_C, cpu->x >= val);
             set_zn(cpu, (cpu->x - val) & 0xFF);
             cpu->cycles += 4;
@@ -1027,21 +1027,21 @@ void cpu_step(CPU *cpu) {
          * absolute        CPY oper         CC    3      4
          */
         case 0xC0: {
-            uint8_t val = bus_read(addr_imm(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_imm(cpu));
             set_flag(cpu, FLAG_C, cpu->y >= val);
             set_zn(cpu, (cpu->y - val) & 0xFF);
             cpu->cycles += 2;
             break;
         }
         case 0xC4: {
-            uint8_t val = bus_read(addr_zpg(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_zpg(cpu));
             set_flag(cpu, FLAG_C, cpu->y >= val);
             set_zn(cpu, (cpu->y - val) & 0xFF);
             cpu->cycles += 3;
             break;
         }
         case 0xCC: {
-            uint8_t val = bus_read(addr_abs(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_abs(cpu));
             set_flag(cpu, FLAG_C, cpu->y >= val);
             set_zn(cpu, (cpu->y - val) & 0xFF);
             cpu->cycles += 4;
@@ -1060,32 +1060,32 @@ void cpu_step(CPU *cpu) {
          */
         case 0xE6: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 5;
             break;
         }
         case 0xF6: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0xEE: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0xFE: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 7;
             break;
@@ -1103,32 +1103,32 @@ void cpu_step(CPU *cpu) {
          */
         case 0xC6: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 5;
             break;
         }
         case 0xD6: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0xCE: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0xDE: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 7;
             break;
@@ -1208,40 +1208,40 @@ void cpu_step(CPU *cpu) {
         // ASL memory
         case 0x06: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 5;
             break;
         }
         case 0x16: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0x0E: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0x1E: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 7;
             break;
@@ -1269,40 +1269,40 @@ void cpu_step(CPU *cpu) {
         // LSR memory
         case 0x46: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 5;
             break;
         }
         case 0x56: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0x4E: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0x5E: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 7;
             break;
@@ -1331,44 +1331,44 @@ void cpu_step(CPU *cpu) {
         // ROL memory
         case 0x26: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool old_carry = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | old_carry;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 5;
             break;
         }
         case 0x36: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool old_carry = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | old_carry;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0x2E: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool old_carry = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | old_carry;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0x3E: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool old_carry = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | old_carry;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 7;
             break;
@@ -1397,44 +1397,44 @@ void cpu_step(CPU *cpu) {
         // ROR memory
         case 0x66: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool old_carry = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (old_carry ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 5;
             break;
         }
         case 0x76: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool old_carry = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (old_carry ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0x6E: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool old_carry = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (old_carry ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 6;
             break;
         }
         case 0x7E: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool old_carry = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (old_carry ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             set_zn(cpu, val);
             cpu->cycles += 7;
             break;
@@ -1462,9 +1462,9 @@ void cpu_step(CPU *cpu) {
             uint16_t ptr = read16(cpu);
             uint16_t addr;
             if ((ptr & 0xFF) == 0xFF) {
-                addr = bus_read(ptr) | (bus_read(ptr & 0xFF00) << 8);
+                addr = bus_read(cpu -> bus,ptr) | (bus_read(cpu -> bus,ptr & 0xFF00) << 8);
             } else {
-                addr = bus_read(ptr) | (bus_read(ptr + 1) << 8);
+                addr = bus_read(cpu -> bus,ptr) | (bus_read(cpu -> bus,ptr + 1) << 8);
             }
             cpu->pc = addr;
             cpu->cycles += 5;
@@ -1482,9 +1482,9 @@ void cpu_step(CPU *cpu) {
             // PC is already pointing at the low byte of the address,
             // so PC+1 is the return address - 1 (RTS will add 1)
             uint16_t ret = cpu->pc + 1;
-            bus_write(STACK_BASE + cpu->sp, (ret >> 8) & 0xFF);
+            bus_write(cpu->bus,STACK_BASE + cpu->sp, (ret >> 8) & 0xFF);
             cpu->sp--;
-            bus_write(STACK_BASE + cpu->sp, ret & 0xFF);
+            bus_write(cpu->bus,STACK_BASE + cpu->sp, ret & 0xFF);
             cpu->sp--;
             cpu->pc = addr_abs(cpu);
             cpu->cycles += 6;
@@ -1499,9 +1499,9 @@ void cpu_step(CPU *cpu) {
          */
         case 0x60: {
             cpu->sp++;
-            uint16_t lo = bus_read(STACK_BASE + cpu->sp);
+            uint16_t lo = bus_read(cpu -> bus,STACK_BASE + cpu->sp);
             cpu->sp++;
-            uint16_t hi = bus_read(STACK_BASE + cpu->sp);
+            uint16_t hi = bus_read(cpu -> bus,STACK_BASE + cpu->sp);
             cpu->pc = ((hi << 8) | lo) + 1;
             cpu->cycles += 6;
             break;
@@ -1516,12 +1516,12 @@ void cpu_step(CPU *cpu) {
         case 0x40: {
             // pull status (same masking as PLP)
             cpu->sp++;
-            cpu->status = (bus_read(STACK_BASE + cpu->sp) & ~FLAG_B) | FLAG_U;
+            cpu->status = (bus_read(cpu -> bus,STACK_BASE + cpu->sp) & ~FLAG_B) | FLAG_U;
             // pull PC (no +1, unlike RTS)
             cpu->sp++;
-            uint16_t lo = bus_read(STACK_BASE + cpu->sp);
+            uint16_t lo = bus_read(cpu -> bus,STACK_BASE + cpu->sp);
             cpu->sp++;
-            uint16_t hi = bus_read(STACK_BASE + cpu->sp);
+            uint16_t hi = bus_read(cpu -> bus,STACK_BASE + cpu->sp);
             cpu->pc = (hi << 8) | lo;
             cpu->cycles += 6;
             break;
@@ -1533,7 +1533,7 @@ void cpu_step(CPU *cpu) {
          */
         // BCC - Branch on Carry Clear
         case 0x90: {
-            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            int8_t offset = (int8_t)bus_read(cpu -> bus,cpu->pc++);
             cpu->cycles += 2;
             if (!(cpu->status & FLAG_C)) {
                 uint16_t old_pc = cpu->pc;
@@ -1545,7 +1545,7 @@ void cpu_step(CPU *cpu) {
         }
         // BCS - Branch on Carry Set
         case 0xB0: {
-            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            int8_t offset = (int8_t)bus_read(cpu -> bus,cpu->pc++);
             cpu->cycles += 2;
             if (cpu->status & FLAG_C) {
                 uint16_t old_pc = cpu->pc;
@@ -1557,7 +1557,7 @@ void cpu_step(CPU *cpu) {
         }
         // BEQ - Branch on Result Zero
         case 0xF0: {
-            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            int8_t offset = (int8_t)bus_read(cpu -> bus,cpu->pc++);
             cpu->cycles += 2;
             if (cpu->status & FLAG_Z) {
                 uint16_t old_pc = cpu->pc;
@@ -1569,7 +1569,7 @@ void cpu_step(CPU *cpu) {
         }
         // BNE - Branch on Result not Zero
         case 0xD0: {
-            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            int8_t offset = (int8_t)bus_read(cpu -> bus,cpu->pc++);
             cpu->cycles += 2;
             if (!(cpu->status & FLAG_Z)) {
                 uint16_t old_pc = cpu->pc;
@@ -1581,7 +1581,7 @@ void cpu_step(CPU *cpu) {
         }
         // BMI - Branch on Result Minus
         case 0x30: {
-            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            int8_t offset = (int8_t)bus_read(cpu -> bus,cpu->pc++);
             cpu->cycles += 2;
             if (cpu->status & FLAG_N) {
                 uint16_t old_pc = cpu->pc;
@@ -1593,7 +1593,7 @@ void cpu_step(CPU *cpu) {
         }
         // BPL - Branch on Result Plus
         case 0x10: {
-            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            int8_t offset = (int8_t)bus_read(cpu -> bus,cpu->pc++);
             cpu->cycles += 2;
             if (!(cpu->status & FLAG_N)) {
                 uint16_t old_pc = cpu->pc;
@@ -1605,7 +1605,7 @@ void cpu_step(CPU *cpu) {
         }
         // BVS - Branch on Overflow Set
         case 0x70: {
-            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            int8_t offset = (int8_t)bus_read(cpu -> bus,cpu->pc++);
             cpu->cycles += 2;
             if (cpu->status & FLAG_V) {
                 uint16_t old_pc = cpu->pc;
@@ -1617,7 +1617,7 @@ void cpu_step(CPU *cpu) {
         }
         // BVC - Branch on Overflow Clear
         case 0x50: {
-            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            int8_t offset = (int8_t)bus_read(cpu -> bus,cpu->pc++);
             cpu->cycles += 2;
             if (!(cpu->status & FLAG_V)) {
                 uint16_t old_pc = cpu->pc;
@@ -1681,14 +1681,14 @@ void cpu_step(CPU *cpu) {
         // BRK - Force Break
         case 0x00: {
             cpu->pc++; // BRK skips the next byte (padding)
-            bus_write(STACK_BASE + cpu->sp, (cpu->pc >> 8) & 0xFF);
+            bus_write(cpu->bus,STACK_BASE + cpu->sp, (cpu->pc >> 8) & 0xFF);
             cpu->sp--;
-            bus_write(STACK_BASE + cpu->sp, cpu->pc & 0xFF);
+            bus_write(cpu->bus,STACK_BASE + cpu->sp, cpu->pc & 0xFF);
             cpu->sp--;
-            bus_write(STACK_BASE + cpu->sp, cpu->status | FLAG_B | FLAG_U);
+            bus_write(cpu->bus,STACK_BASE + cpu->sp, cpu->status | FLAG_B | FLAG_U);
             cpu->sp--;
             cpu->status |= FLAG_I;
-            cpu->pc = bus_read(0xFFFE) | (bus_read(0xFFFF) << 8);
+            cpu->pc = bus_read(cpu -> bus,0xFFFE) | (bus_read(cpu -> bus,0xFFFF) << 8);
             cpu->cycles += 7;
             break;
         }
@@ -1715,10 +1715,10 @@ void cpu_step(CPU *cpu) {
          */
         case 0x07: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a |= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 5;
@@ -1726,10 +1726,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x17: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a |= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -1737,10 +1737,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x0F: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a |= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -1748,10 +1748,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x1F: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a |= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 7;
@@ -1759,10 +1759,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x1B: {
             uint16_t addr = addr_aby(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a |= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 7;
@@ -1770,10 +1770,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x03: {
             uint16_t addr = addr_izx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a |= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 8;
@@ -1781,10 +1781,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x13: {
             uint16_t addr = addr_izy(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT7);
             val <<= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a |= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 8;
@@ -1807,11 +1807,11 @@ void cpu_step(CPU *cpu) {
          */
         case 0x27: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | oc;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a &= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 5;
@@ -1819,11 +1819,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x37: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | oc;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a &= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -1831,11 +1831,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x2F: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | oc;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a &= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -1843,11 +1843,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x3F: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | oc;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a &= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 7;
@@ -1855,11 +1855,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x3B: {
             uint16_t addr = addr_aby(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | oc;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a &= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 7;
@@ -1867,11 +1867,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x23: {
             uint16_t addr = addr_izx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | oc;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a &= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 8;
@@ -1879,11 +1879,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x33: {
             uint16_t addr = addr_izy(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT7);
             val = (val << 1) | oc;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a &= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 8;
@@ -1906,10 +1906,10 @@ void cpu_step(CPU *cpu) {
          */
         case 0x47: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a ^= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 5;
@@ -1917,10 +1917,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x57: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a ^= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -1928,10 +1928,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x4F: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a ^= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -1939,10 +1939,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x5F: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a ^= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 7;
@@ -1950,10 +1950,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x5B: {
             uint16_t addr = addr_aby(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a ^= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 7;
@@ -1961,10 +1961,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x43: {
             uint16_t addr = addr_izx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a ^= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 8;
@@ -1972,10 +1972,10 @@ void cpu_step(CPU *cpu) {
         }
         case 0x53: {
             uint16_t addr = addr_izy(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             set_flag(cpu, FLAG_C, val & BIT0);
             val >>= 1;
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             cpu->a ^= val;
             set_zn(cpu, cpu->a);
             cpu->cycles += 8;
@@ -1998,11 +1998,11 @@ void cpu_step(CPU *cpu) {
          */
         case 0x67: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (oc ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -2013,11 +2013,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x77: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (oc ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -2028,11 +2028,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x6F: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (oc ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -2043,11 +2043,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x7F: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (oc ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -2058,11 +2058,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x7B: {
             uint16_t addr = addr_aby(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (oc ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -2073,11 +2073,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x63: {
             uint16_t addr = addr_izx(cpu);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (oc ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -2088,11 +2088,11 @@ void cpu_step(CPU *cpu) {
         }
         case 0x73: {
             uint16_t addr = addr_izy(cpu, NULL);
-            uint8_t val = bus_read(addr);
+            uint8_t val = bus_read(cpu -> bus,addr);
             bool oc = cpu->status & FLAG_C;
             set_flag(cpu, FLAG_C, val & BIT0);
             val = (val >> 1) | (oc ? BIT7 : 0);
-            bus_write(addr, val);
+            bus_write(cpu->bus,addr, val);
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
@@ -2118,8 +2118,8 @@ void cpu_step(CPU *cpu) {
          */
         case 0xC7: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 5;
@@ -2127,8 +2127,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xD7: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 6;
@@ -2136,8 +2136,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xCF: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 6;
@@ -2145,8 +2145,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xDF: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 7;
@@ -2154,8 +2154,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xDB: {
             uint16_t addr = addr_aby(cpu, NULL);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 7;
@@ -2163,8 +2163,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xC3: {
             uint16_t addr = addr_izx(cpu);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 8;
@@ -2172,8 +2172,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xD3: {
             uint16_t addr = addr_izy(cpu, NULL);
-            uint8_t val = bus_read(addr) - 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) - 1;
+            bus_write(cpu->bus,addr, val);
             set_flag(cpu, FLAG_C, cpu->a >= val);
             set_zn(cpu, (cpu->a - val) & 0xFF);
             cpu->cycles += 8;
@@ -2196,8 +2196,8 @@ void cpu_step(CPU *cpu) {
          */
         case 0xE7: {
             uint16_t addr = addr_zpg(cpu);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             val = ~val;
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
@@ -2209,8 +2209,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xF7: {
             uint16_t addr = addr_zpx(cpu);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             val = ~val;
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
@@ -2222,8 +2222,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xEF: {
             uint16_t addr = addr_abs(cpu);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             val = ~val;
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
@@ -2235,8 +2235,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xFF: {
             uint16_t addr = addr_abx(cpu, NULL);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             val = ~val;
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
@@ -2248,8 +2248,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xFB: {
             uint16_t addr = addr_aby(cpu, NULL);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             val = ~val;
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
@@ -2261,8 +2261,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xE3: {
             uint16_t addr = addr_izx(cpu);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             val = ~val;
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
@@ -2274,8 +2274,8 @@ void cpu_step(CPU *cpu) {
         }
         case 0xF3: {
             uint16_t addr = addr_izy(cpu, NULL);
-            uint8_t val = bus_read(addr) + 1;
-            bus_write(addr, val);
+            uint8_t val = bus_read(cpu -> bus,addr) + 1;
+            bus_write(cpu->bus,addr, val);
             val = ~val;
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
@@ -2300,40 +2300,40 @@ void cpu_step(CPU *cpu) {
          * (indirect),Y    LAX (oper),Y     B3    2      5*
          */
         case 0xA7: {
-            cpu->a = cpu->x = bus_read(addr_zpg(cpu));
+            cpu->a = cpu->x = bus_read(cpu -> bus,addr_zpg(cpu));
             set_zn(cpu, cpu->a);
             cpu->cycles += 3;
             break;
         }
         case 0xB7: {
-            cpu->a = cpu->x = bus_read(addr_zpy(cpu));
+            cpu->a = cpu->x = bus_read(cpu -> bus,addr_zpy(cpu));
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
             break;
         }
         case 0xAF: {
-            cpu->a = cpu->x = bus_read(addr_abs(cpu));
+            cpu->a = cpu->x = bus_read(cpu -> bus,addr_abs(cpu));
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
             break;
         }
         case 0xBF: {
             bool crossed;
-            cpu->a = cpu->x = bus_read(addr_aby(cpu, &crossed));
+            cpu->a = cpu->x = bus_read(cpu -> bus,addr_aby(cpu, &crossed));
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
             if (crossed) cpu->cycles++;
             break;
         }
         case 0xA3: {
-            cpu->a = cpu->x = bus_read(addr_izx(cpu));
+            cpu->a = cpu->x = bus_read(cpu -> bus,addr_izx(cpu));
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
             break;
         }
         case 0xB3: {
             bool crossed;
-            cpu->a = cpu->x = bus_read(addr_izy(cpu, &crossed));
+            cpu->a = cpu->x = bus_read(cpu -> bus,addr_izy(cpu, &crossed));
             set_zn(cpu, cpu->a);
             cpu->cycles += 5;
             if (crossed) cpu->cycles++;
@@ -2352,22 +2352,22 @@ void cpu_step(CPU *cpu) {
          * (indirect,X)    SAX (oper,X)     83    2      6
          */
         case 0x87: {
-            bus_write(addr_zpg(cpu), cpu->a & cpu->x);
+            bus_write(cpu->bus,addr_zpg(cpu), cpu->a & cpu->x);
             cpu->cycles += 3;
             break;
         }
         case 0x97: {
-            bus_write(addr_zpy(cpu), cpu->a & cpu->x);
+            bus_write(cpu->bus,addr_zpy(cpu), cpu->a & cpu->x);
             cpu->cycles += 4;
             break;
         }
         case 0x8F: {
-            bus_write(addr_abs(cpu), cpu->a & cpu->x);
+            bus_write(cpu->bus,addr_abs(cpu), cpu->a & cpu->x);
             cpu->cycles += 4;
             break;
         }
         case 0x83: {
-            bus_write(addr_izx(cpu), cpu->a & cpu->x);
+            bus_write(cpu->bus,addr_izx(cpu), cpu->a & cpu->x);
             cpu->cycles += 6;
             break;
         }
@@ -2381,14 +2381,14 @@ void cpu_step(CPU *cpu) {
          * immediate       ANC #oper        2B    2      2
          */
         case 0x0B: {
-            cpu->a &= bus_read(addr_imm(cpu));
+            cpu->a &= bus_read(cpu -> bus,addr_imm(cpu));
             set_zn(cpu, cpu->a);
             set_flag(cpu, FLAG_C, cpu->a & BIT7);
             cpu->cycles += 2;
             break;
         }
         case 0x2B: {
-            cpu->a &= bus_read(addr_imm(cpu));
+            cpu->a &= bus_read(cpu -> bus,addr_imm(cpu));
             set_zn(cpu, cpu->a);
             set_flag(cpu, FLAG_C, cpu->a & BIT7);
             cpu->cycles += 2;
@@ -2403,7 +2403,7 @@ void cpu_step(CPU *cpu) {
          * immediate       ALR #oper        4B    2      2
          */
         case 0x4B: {
-            cpu->a &= bus_read(addr_imm(cpu));
+            cpu->a &= bus_read(cpu -> bus,addr_imm(cpu));
             set_flag(cpu, FLAG_C, cpu->a & BIT0);
             cpu->a >>= 1;
             set_zn(cpu, cpu->a);
@@ -2420,7 +2420,7 @@ void cpu_step(CPU *cpu) {
          * immediate       ARR #oper        6B    2      2
          */
         case 0x6B: {
-            cpu->a &= bus_read(addr_imm(cpu));
+            cpu->a &= bus_read(cpu -> bus,addr_imm(cpu));
             bool old_carry = cpu->status & FLAG_C;
             cpu->a = (cpu->a >> 1) | (old_carry ? BIT7 : 0);
             set_zn(cpu, cpu->a);
@@ -2439,7 +2439,7 @@ void cpu_step(CPU *cpu) {
          * immediate       AXS #oper        CB    2      2
          */
         case 0xCB: {
-            uint8_t val = bus_read(addr_imm(cpu));
+            uint8_t val = bus_read(cpu -> bus,addr_imm(cpu));
             uint16_t result = (cpu->a & cpu->x) - val;
             cpu->x = result & 0xFF;
             set_flag(cpu, FLAG_C, result < 0x100);
@@ -2456,7 +2456,7 @@ void cpu_step(CPU *cpu) {
          * immediate       SBC #oper        EB    2      2
          */
         case 0xEB: {
-            uint8_t val = ~bus_read(addr_imm(cpu));
+            uint8_t val = ~bus_read(cpu -> bus,addr_imm(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
             set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
