@@ -707,7 +707,97 @@ void cpu_step(CPU *cpu) {
          * (indirect,X)    ADC (oper,X)     61    2      6
          * (indirect),Y    ADC (oper),Y     71    2      5*
          */
-
+        case 0x69: {
+            uint8_t val = bus_read(addr_imm(cpu));
+            // store in 16 bits first
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            // set C+ if unsigned overflow (0-255)
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            // set V+ if signed overflow(-128 to 127)
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            // chop to 8 bits
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 2;
+            break;
+        }
+        // ADC - remaining addressing modes (same logic as 0x69)
+        case 0x65: {
+            uint8_t val = bus_read(addr_zpg(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 3;
+            break;
+        }
+        case 0x75: {
+            uint8_t val = bus_read(addr_zpx(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0x6D: {
+            uint8_t val = bus_read(addr_abs(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0x7D: {
+            bool crossed;
+            uint8_t val = bus_read(addr_abx(cpu, &crossed));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0x79: {
+            bool crossed;
+            uint8_t val = bus_read(addr_aby(cpu, &crossed));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0x61: {
+            uint8_t val = bus_read(addr_izx(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x71: {
+            bool crossed;
+            uint8_t val = bus_read(addr_izy(cpu, &crossed));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 5;
+            if (crossed) cpu->cycles++;
+            break;
+        }
         /*
          * SBC - Subtract Memory from Accumulator with Borrow
          * A - M - ~C -> A                 N Z C I D V
@@ -722,6 +812,93 @@ void cpu_step(CPU *cpu) {
          * (indirect,X)    SBC (oper,X)     E1    2      6
          * (indirect),Y    SBC (oper),Y     F1    2      5*
          */
+        // SBC is A + ~M + C (same as ADC with inverted value)
+        case 0xE9: {
+            uint8_t val = ~bus_read(addr_imm(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 2;
+            break;
+        }
+        case 0xE5: {
+            uint8_t val = ~bus_read(addr_zpg(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 3;
+            break;
+        }
+        case 0xF5: {
+            uint8_t val = ~bus_read(addr_zpx(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0xED: {
+            uint8_t val = ~bus_read(addr_abs(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0xFD: {
+            bool crossed;
+            uint8_t val = ~bus_read(addr_abx(cpu, &crossed));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0xF9: {
+            bool crossed;
+            uint8_t val = ~bus_read(addr_aby(cpu, &crossed));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0xE1: {
+            uint8_t val = ~bus_read(addr_izx(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xF1: {
+            bool crossed;
+            uint8_t val = ~bus_read(addr_izy(cpu, &crossed));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            if (sum > 0xFF) cpu->status |= FLAG_C; else cpu->status &= ~FLAG_C;
+            if ((~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80) cpu->status |= FLAG_V; else cpu->status &= ~FLAG_V;
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 5;
+            if (crossed) cpu->cycles++;
+            break;
+        }
 
         /*
          * CMP - Compare Memory with Accumulator
