@@ -1,4 +1,4 @@
-#include "cpu.h"
+#include "cpu/cpu.h"
 #include "bus.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -2,7 +2,7 @@
 #define CPU_H
 
 #include <stdint.h>
-#include "bus.h"
+#include "../bus.h"
 
 // Status flag bits
 #define FLAG_C 0x01  // Carry
@@ -20,14 +20,22 @@
 #define STACK_BASE 0x0100
 
 typedef struct {
-    uint16_t pc;     // Program counter
-    uint8_t  sp;     // Stack pointer
-    uint8_t  a;      // Accumulator
-    uint8_t  x;      // X register
-    uint8_t  y;      // Y register
-    uint8_t  status; // Status flags
-    uint64_t cycles; // Total cycle count
-    Bus* bus; // bus
+    // Registers
+    uint16_t pc;
+    uint8_t  sp;
+    uint8_t  a; 
+    uint8_t  x;
+    uint8_t  y;
+    uint8_t  status;
+    uint64_t cycles; 
+
+    // FSM 
+    uint8_t  opcode;
+    uint8_t  cycle; 
+    uint16_t addr;
+    uint8_t  data;
+
+    Bus *bus;
 } CPU;
 
 void cpu_init(CPU *cpu);
