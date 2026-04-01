@@ -82,10 +82,8 @@ int main(int argc, char *argv[]) {
     cpu_reset(&cpu);
 
     if (nestest) {
-        // nestest automation mode: start at $C000
         cpu.pc = 0xC000;
-        // run until we hit a known stop or loop
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 8991; i++) {
             cpu_trace(&cpu);
             cpu_step(&cpu);
         }

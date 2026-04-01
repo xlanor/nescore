@@ -16,8 +16,11 @@ void set_zn(CPU *cpu, uint8_t val) {
     set_flag(cpu, FLAG_N, val & BIT7);
 }
 
-// Read ops
-
+/*
+ * LDA - Load Accumulator with Memory
+ * M -> A                          N Z C I D V
+ *                                 + + - - - -
+ */
 void op_lda(CPU *cpu) {
     cpu->a = cpu->data;
     set_zn(cpu, cpu->a);
