@@ -1693,6 +1693,949 @@ void cpu_step(CPU *cpu) {
             break;
         }
 
+        // =================================================================
+        // Unofficial opcodes
+        // Ref: https://www.nesdev.org/wiki/CPU_unofficial_opcodes
+        // Ref: https://www.nesdev.org/undocumented_opcodes.txt
+        // =================================================================
+
+        /*
+         * SLO - ASL memory, then ORA with A
+         * {addr} := {addr} * 2; A := A OR {addr}
+         *                                 N Z C I D V
+         *                                 + + + - - -
+         * addressing      assembler       opc  bytes  cycles
+         * zeropage        SLO oper         07    2      5
+         * zeropage,X      SLO oper,X       17    2      6
+         * absolute        SLO oper         0F    3      6
+         * absolute,X      SLO oper,X       1F    3      7
+         * absolute,Y      SLO oper,Y       1B    3      7
+         * (indirect,X)    SLO (oper,X)     03    2      8
+         * (indirect),Y    SLO (oper),Y     13    2      8
+         */
+        case 0x07: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            cpu->a |= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0x17: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            cpu->a |= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x0F: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            cpu->a |= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x1F: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            cpu->a |= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0x1B: {
+            uint16_t addr = addr_aby(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            cpu->a |= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0x03: {
+            uint16_t addr = addr_izx(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            cpu->a |= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+        case 0x13: {
+            uint16_t addr = addr_izy(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            cpu->a |= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+
+        /*
+         * RLA - ROL memory, then AND with A
+         * {addr} := {addr} rol 1; A := A AND {addr}
+         *                                 N Z C I D V
+         *                                 + + + - - -
+         * addressing      assembler       opc  bytes  cycles
+         * zeropage        RLA oper         27    2      5
+         * zeropage,X      RLA oper,X       37    2      6
+         * absolute        RLA oper         2F    3      6
+         * absolute,X      RLA oper,X       3F    3      7
+         * absolute,Y      RLA oper,Y       3B    3      7
+         * (indirect,X)    RLA (oper,X)     23    2      8
+         * (indirect),Y    RLA (oper),Y     33    2      8
+         */
+        case 0x27: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | oc;
+            bus_write(addr, val);
+            cpu->a &= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0x37: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | oc;
+            bus_write(addr, val);
+            cpu->a &= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x2F: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | oc;
+            bus_write(addr, val);
+            cpu->a &= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x3F: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | oc;
+            bus_write(addr, val);
+            cpu->a &= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0x3B: {
+            uint16_t addr = addr_aby(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | oc;
+            bus_write(addr, val);
+            cpu->a &= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0x23: {
+            uint16_t addr = addr_izx(cpu);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | oc;
+            bus_write(addr, val);
+            cpu->a &= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+        case 0x33: {
+            uint16_t addr = addr_izy(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | oc;
+            bus_write(addr, val);
+            cpu->a &= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+
+        /*
+         * SRE - LSR memory, then EOR with A
+         * {addr} := {addr} / 2; A := A EOR {addr}
+         *                                 N Z C I D V
+         *                                 + + + - - -
+         * addressing      assembler       opc  bytes  cycles
+         * zeropage        SRE oper         47    2      5
+         * zeropage,X      SRE oper,X       57    2      6
+         * absolute        SRE oper         4F    3      6
+         * absolute,X      SRE oper,X       5F    3      7
+         * absolute,Y      SRE oper,Y       5B    3      7
+         * (indirect,X)    SRE (oper,X)     43    2      8
+         * (indirect),Y    SRE (oper),Y     53    2      8
+         */
+        case 0x47: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            cpu->a ^= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0x57: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            cpu->a ^= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x4F: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            cpu->a ^= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x5F: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            cpu->a ^= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0x5B: {
+            uint16_t addr = addr_aby(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            cpu->a ^= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0x43: {
+            uint16_t addr = addr_izx(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            cpu->a ^= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+        case 0x53: {
+            uint16_t addr = addr_izy(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            cpu->a ^= val;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+
+        /*
+         * RRA - ROR memory, then ADC with A
+         * {addr} := {addr} ror 1; A := A + {addr} + C
+         *                                 N Z C I D V
+         *                                 + + + - - +
+         * addressing      assembler       opc  bytes  cycles
+         * zeropage        RRA oper         67    2      5
+         * zeropage,X      RRA oper,X       77    2      6
+         * absolute        RRA oper         6F    3      6
+         * absolute,X      RRA oper,X       7F    3      7
+         * absolute,Y      RRA oper,Y       7B    3      7
+         * (indirect,X)    RRA (oper,X)     63    2      8
+         * (indirect),Y    RRA (oper),Y     73    2      8
+         */
+        case 0x67: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (oc ? BIT7 : 0);
+            bus_write(addr, val);
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0x77: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (oc ? BIT7 : 0);
+            bus_write(addr, val);
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x6F: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (oc ? BIT7 : 0);
+            bus_write(addr, val);
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x7F: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (oc ? BIT7 : 0);
+            bus_write(addr, val);
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0x7B: {
+            uint16_t addr = addr_aby(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (oc ? BIT7 : 0);
+            bus_write(addr, val);
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0x63: {
+            uint16_t addr = addr_izx(cpu);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (oc ? BIT7 : 0);
+            bus_write(addr, val);
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+        case 0x73: {
+            uint16_t addr = addr_izy(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            bool oc = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (oc ? BIT7 : 0);
+            bus_write(addr, val);
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+
+        /*
+         * DCP - DEC memory, then CMP with A
+         * {addr} := {addr} - 1; A - {addr}
+         *                                 N Z C I D V
+         *                                 + + + - - -
+         * addressing      assembler       opc  bytes  cycles
+         * zeropage        DCP oper         C7    2      5
+         * zeropage,X      DCP oper,X       D7    2      6
+         * absolute        DCP oper         CF    3      6
+         * absolute,X      DCP oper,X       DF    3      7
+         * absolute,Y      DCP oper,Y       DB    3      7
+         * (indirect,X)    DCP (oper,X)     C3    2      8
+         * (indirect),Y    DCP (oper),Y     D3    2      8
+         */
+        case 0xC7: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0xD7: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xCF: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xDF: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0xDB: {
+            uint16_t addr = addr_aby(cpu, NULL);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0xC3: {
+            uint16_t addr = addr_izx(cpu);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 8;
+            break;
+        }
+        case 0xD3: {
+            uint16_t addr = addr_izy(cpu, NULL);
+            uint8_t val = bus_read(addr) - 1;
+            bus_write(addr, val);
+            set_flag(cpu, FLAG_C, cpu->a >= val);
+            set_zn(cpu, (cpu->a - val) & 0xFF);
+            cpu->cycles += 8;
+            break;
+        }
+
+        /*
+         * ISC - INC memory, then SBC from A
+         * {addr} := {addr} + 1; A := A - {addr} - ~C
+         *                                 N Z C I D V
+         *                                 + + + - - +
+         * addressing      assembler       opc  bytes  cycles
+         * zeropage        ISC oper         E7    2      5
+         * zeropage,X      ISC oper,X       F7    2      6
+         * absolute        ISC oper         EF    3      6
+         * absolute,X      ISC oper,X       FF    3      7
+         * absolute,Y      ISC oper,Y       FB    3      7
+         * (indirect,X)    ISC (oper,X)     E3    2      8
+         * (indirect),Y    ISC (oper),Y     F3    2      8
+         */
+        case 0xE7: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            val = ~val;
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0xF7: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            val = ~val;
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xEF: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            val = ~val;
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xFF: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            val = ~val;
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0xFB: {
+            uint16_t addr = addr_aby(cpu, NULL);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            val = ~val;
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 7;
+            break;
+        }
+        case 0xE3: {
+            uint16_t addr = addr_izx(cpu);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            val = ~val;
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+        case 0xF3: {
+            uint16_t addr = addr_izy(cpu, NULL);
+            uint8_t val = bus_read(addr) + 1;
+            bus_write(addr, val);
+            val = ~val;
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 8;
+            break;
+        }
+
+        /*
+         * LAX - LDA + LDX (load A and X from memory)
+         * A := M; X := M
+         *                                 N Z C I D V
+         *                                 + + - - - -
+         * addressing      assembler       opc  bytes  cycles
+         * zeropage        LAX oper         A7    2      3
+         * zeropage,Y      LAX oper,Y       B7    2      4
+         * absolute        LAX oper         AF    3      4
+         * absolute,Y      LAX oper,Y       BF    3      4*
+         * (indirect,X)    LAX (oper,X)     A3    2      6
+         * (indirect),Y    LAX (oper),Y     B3    2      5*
+         */
+        case 0xA7: {
+            cpu->a = cpu->x = bus_read(addr_zpg(cpu));
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 3;
+            break;
+        }
+        case 0xB7: {
+            cpu->a = cpu->x = bus_read(addr_zpy(cpu));
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0xAF: {
+            cpu->a = cpu->x = bus_read(addr_abs(cpu));
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0xBF: {
+            bool crossed;
+            cpu->a = cpu->x = bus_read(addr_aby(cpu, &crossed));
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0xA3: {
+            cpu->a = cpu->x = bus_read(addr_izx(cpu));
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0xB3: {
+            bool crossed;
+            cpu->a = cpu->x = bus_read(addr_izy(cpu, &crossed));
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 5;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+
+        /*
+         * SAX - Store A AND X in memory
+         * M := A AND X
+         *                                 N Z C I D V
+         *                                 - - - - - -
+         * addressing      assembler       opc  bytes  cycles
+         * zeropage        SAX oper         87    2      3
+         * zeropage,Y      SAX oper,Y       97    2      4
+         * absolute        SAX oper         8F    3      4
+         * (indirect,X)    SAX (oper,X)     83    2      6
+         */
+        case 0x87: {
+            bus_write(addr_zpg(cpu), cpu->a & cpu->x);
+            cpu->cycles += 3;
+            break;
+        }
+        case 0x97: {
+            bus_write(addr_zpy(cpu), cpu->a & cpu->x);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0x8F: {
+            bus_write(addr_abs(cpu), cpu->a & cpu->x);
+            cpu->cycles += 4;
+            break;
+        }
+        case 0x83: {
+            bus_write(addr_izx(cpu), cpu->a & cpu->x);
+            cpu->cycles += 6;
+            break;
+        }
+
+        /*
+         * ANC - AND immediate, then copy N to C
+         * A := A AND oper; C := N
+         *                                 N Z C I D V
+         *                                 + + + - - -
+         * immediate       ANC #oper        0B    2      2
+         * immediate       ANC #oper        2B    2      2
+         */
+        case 0x0B: {
+            cpu->a &= bus_read(addr_imm(cpu));
+            set_zn(cpu, cpu->a);
+            set_flag(cpu, FLAG_C, cpu->a & BIT7);
+            cpu->cycles += 2;
+            break;
+        }
+        case 0x2B: {
+            cpu->a &= bus_read(addr_imm(cpu));
+            set_zn(cpu, cpu->a);
+            set_flag(cpu, FLAG_C, cpu->a & BIT7);
+            cpu->cycles += 2;
+            break;
+        }
+
+        /*
+         * ALR - AND immediate, then LSR A
+         * A := (A AND oper) >> 1
+         *                                 N Z C I D V
+         *                                 + + + - - -
+         * immediate       ALR #oper        4B    2      2
+         */
+        case 0x4B: {
+            cpu->a &= bus_read(addr_imm(cpu));
+            set_flag(cpu, FLAG_C, cpu->a & BIT0);
+            cpu->a >>= 1;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 2;
+            break;
+        }
+
+        /*
+         * ARR - AND immediate, then ROR A (special flags)
+         * A := (A AND oper) ror 1
+         * C is set from bit 6, V is set from bit 6 XOR bit 5
+         *                                 N Z C I D V
+         *                                 + + + - - +
+         * immediate       ARR #oper        6B    2      2
+         */
+        case 0x6B: {
+            cpu->a &= bus_read(addr_imm(cpu));
+            bool old_carry = cpu->status & FLAG_C;
+            cpu->a = (cpu->a >> 1) | (old_carry ? BIT7 : 0);
+            set_zn(cpu, cpu->a);
+            // ARR special flag handling: C from bit 6, V from bit 6 XOR bit 5
+            set_flag(cpu, FLAG_C, cpu->a & 0x40);
+            set_flag(cpu, FLAG_V, ((cpu->a >> 6) ^ (cpu->a >> 5)) & 1);
+            cpu->cycles += 2;
+            break;
+        }
+
+        /*
+         * AXS - (A AND X) - immediate -> X, no borrow
+         * X := (A AND X) - oper
+         *                                 N Z C I D V
+         *                                 + + + - - -
+         * immediate       AXS #oper        CB    2      2
+         */
+        case 0xCB: {
+            uint8_t val = bus_read(addr_imm(cpu));
+            uint16_t result = (cpu->a & cpu->x) - val;
+            cpu->x = result & 0xFF;
+            set_flag(cpu, FLAG_C, result < 0x100);
+            set_zn(cpu, cpu->x);
+            cpu->cycles += 2;
+            break;
+        }
+
+        /*
+         * EB - SBC immediate (identical to official E9)
+         * A := A - M - ~C
+         *                                 N Z C I D V
+         *                                 + + + - - +
+         * immediate       SBC #oper        EB    2      2
+         */
+        case 0xEB: {
+            uint8_t val = ~bus_read(addr_imm(cpu));
+            uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
+            set_flag(cpu, FLAG_C, sum > 0xFF);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
+            cpu->a = sum & 0xFF;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 2;
+            break;
+        }
+
+        /*
+         * Unofficial NOP variants
+         * Various byte widths, just skip bytes and burn cycles
+         *
+         * 1-byte implied NOPs (2 cycles):
+         *   1A, 3A, 5A, 7A, DA, FA
+         *
+         * 2-byte immediate NOPs (2 cycles):
+         *   80, 82, 89, C2, E2
+         *
+         * 2-byte zeropage NOPs (3 cycles):
+         *   04, 44, 64
+         *
+         * 2-byte zeropage,X NOPs (4 cycles):
+         *   14, 34, 54, 74, D4, F4
+         *
+         * 3-byte absolute NOP (4 cycles):
+         *   0C
+         *
+         * 3-byte absolute,X NOPs (4* cycles):
+         *   1C, 3C, 5C, 7C, DC, FC
+         */
+        // 1-byte implied NOPs
+        case 0x1A: {
+            cpu->cycles += 2;
+            break;
+        }
+        case 0x3A: {
+            cpu->cycles += 2;
+            break;
+        }
+        case 0x5A: {
+            cpu->cycles += 2;
+            break;
+        }
+        case 0x7A: {
+            cpu->cycles += 2;
+            break;
+        }
+        case 0xDA: {
+            cpu->cycles += 2;
+            break;
+        }
+        case 0xFA: {
+            cpu->cycles += 2;
+            break;
+        }
+        // 2-byte immediate NOPs
+        case 0x80: {
+            cpu->pc++;
+            cpu->cycles += 2;
+            break;
+        }
+        case 0x82: {
+            cpu->pc++;
+            cpu->cycles += 2;
+            break;
+        }
+        case 0x89: {
+            cpu->pc++;
+            cpu->cycles += 2;
+            break;
+        }
+        case 0xC2: {
+            cpu->pc++;
+            cpu->cycles += 2;
+            break;
+        }
+        case 0xE2: {
+            cpu->pc++;
+            cpu->cycles += 2;
+            break;
+        }
+        // 2-byte zeropage NOPs
+        case 0x04: {
+            cpu->pc++;
+            cpu->cycles += 3;
+            break;
+        }
+        case 0x44: {
+            cpu->pc++;
+            cpu->cycles += 3;
+            break;
+        }
+        case 0x64: {
+            cpu->pc++;
+            cpu->cycles += 3;
+            break;
+        }
+        // 2-byte zeropage,X NOPs
+        case 0x14: {
+            cpu->pc++;
+            cpu->cycles += 4;
+            break;
+        }
+        case 0x34: {
+            cpu->pc++;
+            cpu->cycles += 4;
+            break;
+        }
+        case 0x54: {
+            cpu->pc++;
+            cpu->cycles += 4;
+            break;
+        }
+        case 0x74: {
+            cpu->pc++;
+            cpu->cycles += 4;
+            break;
+        }
+        case 0xD4: {
+            cpu->pc++;
+            cpu->cycles += 4;
+            break;
+        }
+        case 0xF4: {
+            cpu->pc++;
+            cpu->cycles += 4;
+            break;
+        }
+        // 3-byte absolute NOP
+        case 0x0C: {
+            cpu->pc += 2;
+            cpu->cycles += 4;
+            break;
+        }
+        // 3-byte absolute,X NOPs (4* cycles, page crossing adds 1)
+        case 0x1C: {
+            bool crossed;
+            addr_abx(cpu, &crossed);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0x3C: {
+            bool crossed;
+            addr_abx(cpu, &crossed);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0x5C: {
+            bool crossed;
+            addr_abx(cpu, &crossed);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0x7C: {
+            bool crossed;
+            addr_abx(cpu, &crossed);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0xDC: {
+            bool crossed;
+            addr_abx(cpu, &crossed);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+        case 0xFC: {
+            bool crossed;
+            addr_abx(cpu, &crossed);
+            cpu->cycles += 4;
+            if (crossed) cpu->cycles++;
+            break;
+        }
+
     default:
         fprintf(stderr, "Unknown opcode: %02X at %04X\n", opcode, cpu->pc - 1);
         break;
