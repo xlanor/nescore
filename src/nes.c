@@ -18,7 +18,13 @@ void nes_init(NES *nes) {
 }
 
 int nes_load_rom(NES *nes, const char *path) {
-    return cart_load(&nes->cart, path);
+    int nes_load_rom(NES *nes, const char *path) {
+    int result = cart_load(&nes->cart, path);
+    if (result == 0) {
+        nes->bus.cart = &nes->cart;
+    }
+    return result;
+}
 }
 
 void nes_reset(NES *nes) {
