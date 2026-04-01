@@ -1,6 +1,6 @@
 CC = cc
-CFLAGS = -Wall -Wextra -std=c99 -O2
-SRC = src/main.c src/cpu/cpu.c src/cpu/cpu_ops.c src/cpu/cpu_table.c src/bus.c
+CFLAGS = -Wall -Wextra -std=c99 -O2 -Isrc
+SRC = src/main.c src/cpu/cpu.c src/cpu/cpu_ops.c src/cpu/cpu_table.c src/bus/bus.c src/cart/cart.c
 OUT = knes
 
 $(OUT): $(SRC)

@@ -2,13 +2,14 @@
 #define BUS_H
 
 #include <stdint.h>
+#include "cart/cart.h"
 
 typedef void (*bus_tick_fn)(void *ctx);
 typedef struct {
-    // probably need to change this to match actual NES ram later.
-    uint8_t ram[0x10000];
+    uint8_t ram[2048];
     bus_tick_fn tick;
     void *tick_ctx;
+    Cart *cart;
 } Bus;
 
 void bus_init(Bus* bus);

@@ -1,5 +1,6 @@
 #include "cpu/cpu.h"
 #include "bus/bus.h"
+#include "cart/cart.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,12 +11,15 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Usage: %s <rom.nes>\n", argv[0]);
         return 1;
     }
-    Bus bus;
-    bus_init(&bus);
 
-    if (load_rom(&bus, argv[1]) != 0) {
+    Cart cart;
+    if (cart_load(&cart, argv[1]) != 0) {
         return 1;
     }
+
+    Bus bus;
+    bus_init(&bus);
+    bus.cart = &cart;
 
     int nestest = 0;
     if (argc >= 3 && strcmp(argv[2], "--nestest") == 0) {

@@ -2,7 +2,7 @@
 #define CPU_H
 
 #include <stdint.h>
-#include "../bus/bus.h"
+#include "bus/bus.h"
 
 // Status flag bits
 #define FLAG_C 0x01  // Carry
