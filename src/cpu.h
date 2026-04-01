@@ -2,6 +2,7 @@
 #define CPU_H
 
 #include <stdint.h>
+#include "bus.h"
 
 // Status flag bits
 #define FLAG_C 0x01  // Carry
@@ -26,6 +27,7 @@ typedef struct {
     uint8_t  y;      // Y register
     uint8_t  status; // Status flags
     uint64_t cycles; // Total cycle count
+    Bus* bus; // bus
 } CPU;
 
 void cpu_init(CPU *cpu);

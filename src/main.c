@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int load_rom(const char *path) {
+static int load_rom(Bus *bus, const char *path) {
     FILE *f = fopen(path, "rb");
     if (!f) {
         fprintf(stderr, "Failed to open %s\n", path);
@@ -46,11 +46,11 @@ static int load_rom(const char *path) {
     }
 
     for (size_t i = 0; i < prg_size; i++) {
-        bus_write(0x8000 + i, prg[i]);
+        bus->ram[0x8000 + i] = prg[i];
     }
     if (prg_banks == 1) {
         for (size_t i = 0; i < prg_size; i++) {
-            bus_write(0xC000 + i, prg[i]);
+            bus->ram[0xC000 + i] = prg[i];
         }
     }
 
@@ -64,10 +64,10 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Usage: %s <rom.nes>\n", argv[0]);
         return 1;
     }
+    Bus bus;
+    bus_init(&bus);
 
-    bus_init();
-
-    if (load_rom(argv[1]) != 0) {
+    if (load_rom(&bus, argv[1]) != 0) {
         return 1;
     }
 
@@ -78,6 +78,7 @@ int main(int argc, char *argv[]) {
 
     CPU cpu;
     cpu_init(&cpu);
+    cpu.bus = &bus;
     cpu_reset(&cpu);
 
     if (nestest) {
