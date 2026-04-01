@@ -13,6 +13,9 @@
 #define FLAG_V 0x40  // Overflow
 #define FLAG_N 0x80  // Negative
 
+#define BIT0 0x01
+#define BIT7 0x80
+
 #define STACK_BASE 0x0100
 
 typedef struct {
@@ -28,5 +31,6 @@ typedef struct {
 void cpu_init(CPU *cpu);
 void cpu_reset(CPU *cpu);
 void cpu_step(CPU *cpu);
+void cpu_trace(CPU *cpu);
 
 #endif

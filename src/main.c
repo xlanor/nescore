@@ -2,6 +2,7 @@
 #include "bus.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int load_rom(const char *path) {
     FILE *f = fopen(path, "rb");
@@ -70,14 +71,28 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    int nestest = 0;
+    if (argc >= 3 && strcmp(argv[2], "--nestest") == 0) {
+        nestest = 1;
+    }
+
     CPU cpu;
     cpu_init(&cpu);
     cpu_reset(&cpu);
 
-    printf("PC starts at: %04X\n", cpu.pc);
-
-    for (int i = 0; i < 100; i++) {
-        cpu_step(&cpu);
+    if (nestest) {
+        // nestest automation mode: start at $C000
+        cpu.pc = 0xC000;
+        // run until we hit a known stop or loop
+        for (int i = 0; i < 10000; i++) {
+            cpu_trace(&cpu);
+            cpu_step(&cpu);
+        }
+    } else {
+        printf("PC starts at: %04X\n", cpu.pc);
+        for (int i = 0; i < 100; i++) {
+            cpu_step(&cpu);
+        }
     }
 
     return 0;

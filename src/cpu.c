@@ -8,7 +8,7 @@ static void set_flag(CPU *cpu, uint8_t flag, bool cond) {
 }
 static void set_zn(CPU *cpu, uint8_t val) {
     set_flag(cpu, FLAG_Z, val == 0);
-    set_flag(cpu, FLAG_N, val & 0x80);
+    set_flag(cpu, FLAG_N, val & BIT7);
 }
 static uint16_t read16(CPU *cpu) {
     uint8_t lo = bus_read(cpu->pc ++);
@@ -68,6 +68,13 @@ void cpu_reset(CPU *cpu) {
     cpu->cycles = 7;
 }
 
+
+void cpu_trace(CPU *cpu) {
+    // simplified ver to match nestest.log as we dont have PPU yet... 
+    printf("%04X  A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%llu\n",
+           cpu->pc, cpu->a, cpu->x, cpu->y, cpu->status, cpu->sp,
+           (unsigned long long)cpu->cycles);
+}
 
 void cpu_step(CPU *cpu) {
     uint8_t opcode = bus_read(cpu->pc++);
@@ -142,7 +149,7 @@ void cpu_step(CPU *cpu) {
         case 0xB1: {
             bool crossed;
             cpu ->a = bus_read(addr_izy(cpu,&crossed));
-            cpu->cycles += 6;
+            cpu->cycles += 5;
             if(crossed) {
                 cpu->cycles += 1;
             }
@@ -717,7 +724,7 @@ void cpu_step(CPU *cpu) {
             // set C+ if unsigned overflow (0-255)
             set_flag(cpu, FLAG_C, sum > 0xFF);
             // set V+ if signed overflow(-128 to 127)
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             // chop to 8 bits
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
@@ -729,7 +736,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = bus_read(addr_zpg(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 3;
@@ -739,7 +746,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = bus_read(addr_zpx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -749,7 +756,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = bus_read(addr_abs(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -760,7 +767,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = bus_read(addr_abx(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -772,7 +779,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = bus_read(addr_aby(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -783,7 +790,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = bus_read(addr_izx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -794,7 +801,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = bus_read(addr_izy(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 5;
@@ -820,7 +827,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = ~bus_read(addr_imm(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 2;
@@ -830,7 +837,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = ~bus_read(addr_zpg(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 3;
@@ -840,7 +847,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = ~bus_read(addr_zpx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -850,7 +857,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = ~bus_read(addr_abs(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -861,7 +868,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = ~bus_read(addr_abx(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -873,7 +880,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = ~bus_read(addr_aby(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 4;
@@ -884,7 +891,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = ~bus_read(addr_izx(cpu));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 6;
@@ -895,7 +902,7 @@ void cpu_step(CPU *cpu) {
             uint8_t val = ~bus_read(addr_izy(cpu, &crossed));
             uint16_t sum = cpu->a + val + (cpu->status & FLAG_C ? 1 : 0);
             set_flag(cpu, FLAG_C, sum > 0xFF);
-            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & 0x80);
+            set_flag(cpu, FLAG_V, (~(cpu->a ^ val) & (cpu->a ^ sum)) & BIT7);
             cpu->a = sum & 0xFF;
             set_zn(cpu, cpu->a);
             cpu->cycles += 5;
@@ -1190,6 +1197,55 @@ void cpu_step(CPU *cpu) {
          * absolute        ASL oper         0E    3      6
          * absolute,X      ASL oper,X       1E    3      7
          */
+        // ASL accumulator
+        case 0x0A: {
+            set_flag(cpu, FLAG_C, cpu->a & BIT7);
+            cpu->a <<= 1;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 2;
+            break;
+        }
+        // ASL memory
+        case 0x06: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0x16: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x0E: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x1E: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val <<= 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 7;
+            break;
+        }
 
         /*
          * LSR - Shift One Bit Right (Memory or Accumulator)
@@ -1202,6 +1258,55 @@ void cpu_step(CPU *cpu) {
          * absolute        LSR oper         4E    3      6
          * absolute,X      LSR oper,X       5E    3      7
          */
+        // LSR accumulator
+        case 0x4A: {
+            set_flag(cpu, FLAG_C, cpu->a & BIT0);
+            cpu->a >>= 1;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 2;
+            break;
+        }
+        // LSR memory
+        case 0x46: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0x56: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x4E: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x5E: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val >>= 1;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 7;
+            break;
+        }
 
         /*
          * ROL - Rotate One Bit Left (Memory or Accumulator)
@@ -1214,6 +1319,60 @@ void cpu_step(CPU *cpu) {
          * absolute        ROL oper         2E    3      6
          * absolute,X      ROL oper,X       3E    3      7
          */
+        // ROL accumulator
+        case 0x2A: {
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, cpu->a & BIT7);
+            cpu->a = (cpu->a << 1) | old_carry;
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 2;
+            break;
+        }
+        // ROL memory
+        case 0x26: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr);
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | old_carry;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0x36: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr);
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | old_carry;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x2E: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr);
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | old_carry;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x3E: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT7);
+            val = (val << 1) | old_carry;
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 7;
+            break;
+        }
 
         /*
          * ROR - Rotate One Bit Right (Memory or Accumulator)
@@ -1226,6 +1385,60 @@ void cpu_step(CPU *cpu) {
          * absolute        ROR oper         6E    3      6
          * absolute,X      ROR oper,X       7E    3      7
          */
+        // ROR accumulator
+        case 0x6A: {
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, cpu->a & BIT0);
+            cpu->a = (cpu->a >> 1) | (old_carry ? BIT7 : 0);
+            set_zn(cpu, cpu->a);
+            cpu->cycles += 2;
+            break;
+        }
+        // ROR memory
+        case 0x66: {
+            uint16_t addr = addr_zpg(cpu);
+            uint8_t val = bus_read(addr);
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (old_carry ? BIT7 : 0);
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 5;
+            break;
+        }
+        case 0x76: {
+            uint16_t addr = addr_zpx(cpu);
+            uint8_t val = bus_read(addr);
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (old_carry ? BIT7 : 0);
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x6E: {
+            uint16_t addr = addr_abs(cpu);
+            uint8_t val = bus_read(addr);
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (old_carry ? BIT7 : 0);
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 6;
+            break;
+        }
+        case 0x7E: {
+            uint16_t addr = addr_abx(cpu, NULL);
+            uint8_t val = bus_read(addr);
+            bool old_carry = cpu->status & FLAG_C;
+            set_flag(cpu, FLAG_C, val & BIT0);
+            val = (val >> 1) | (old_carry ? BIT7 : 0);
+            bus_write(addr, val);
+            set_zn(cpu, val);
+            cpu->cycles += 7;
+            break;
+        }
 
         /*
          * JMP - Jump to New Location
@@ -1235,6 +1448,28 @@ void cpu_step(CPU *cpu) {
          * absolute        JMP oper         4C    3      3
          * indirect        JMP (oper)       6C    3      5
          */
+        case 0x4C: {
+            cpu->pc = addr_abs(cpu);
+            cpu->cycles += 3;
+            break;
+        }
+        case 0x6C: {
+            // JMP indirect has a hardware bug on the 6502:
+            // if the pointer address falls on a page boundary ($xxFF),
+            // the high byte wraps within the page instead of crossing.
+            // e.g. JMP ($10FF) reads low from $10FF and high from $1000,
+            // NOT $1100. See: https://www.nesdev.org/wiki/Errata
+            uint16_t ptr = read16(cpu);
+            uint16_t addr;
+            if ((ptr & 0xFF) == 0xFF) {
+                addr = bus_read(ptr) | (bus_read(ptr & 0xFF00) << 8);
+            } else {
+                addr = bus_read(ptr) | (bus_read(ptr + 1) << 8);
+            }
+            cpu->pc = addr;
+            cpu->cycles += 5;
+            break;
+        }
 
         /*
          * JSR - Jump to New Location Saving Return Address
@@ -1242,6 +1477,19 @@ void cpu_step(CPU *cpu) {
          *                                 - - - - - -
          * absolute        JSR oper         20    3      6
          */
+        case 0x20: {
+            // push PC+2 (address of last byte of JSR instruction)
+            // PC is already pointing at the low byte of the address,
+            // so PC+1 is the return address - 1 (RTS will add 1)
+            uint16_t ret = cpu->pc + 1;
+            bus_write(STACK_BASE + cpu->sp, (ret >> 8) & 0xFF);
+            cpu->sp--;
+            bus_write(STACK_BASE + cpu->sp, ret & 0xFF);
+            cpu->sp--;
+            cpu->pc = addr_abs(cpu);
+            cpu->cycles += 6;
+            break;
+        }
 
         /*
          * RTS - Return from Subroutine
@@ -1249,6 +1497,15 @@ void cpu_step(CPU *cpu) {
          *                                 - - - - - -
          * implied         RTS              60    1      6
          */
+        case 0x60: {
+            cpu->sp++;
+            uint16_t lo = bus_read(STACK_BASE + cpu->sp);
+            cpu->sp++;
+            uint16_t hi = bus_read(STACK_BASE + cpu->sp);
+            cpu->pc = ((hi << 8) | lo) + 1;
+            cpu->cycles += 6;
+            break;
+        }
 
         /*
          * RTI - Return from Interrupt
@@ -1256,125 +1513,185 @@ void cpu_step(CPU *cpu) {
          *                                 from stack
          * implied         RTI              40    1      6
          */
+        case 0x40: {
+            // pull status (same masking as PLP)
+            cpu->sp++;
+            cpu->status = (bus_read(STACK_BASE + cpu->sp) & ~FLAG_B) | FLAG_U;
+            // pull PC (no +1, unlike RTS)
+            cpu->sp++;
+            uint16_t lo = bus_read(STACK_BASE + cpu->sp);
+            cpu->sp++;
+            uint16_t hi = bus_read(STACK_BASE + cpu->sp);
+            cpu->pc = (hi << 8) | lo;
+            cpu->cycles += 6;
+            break;
+        }
 
         /*
-         * BCC - Branch on Carry Clear
-         * branch if C = 0                 N Z C I D V
-         *                                 - - - - - -
-         * relative        BCC oper         90    2      2**
+         * Branches - all use relative addressing
+         * 2** = +1 if branch taken, +2 if page crossed
          */
+        // BCC - Branch on Carry Clear
+        case 0x90: {
+            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            cpu->cycles += 2;
+            if (!(cpu->status & FLAG_C)) {
+                uint16_t old_pc = cpu->pc;
+                cpu->pc += offset;
+                cpu->cycles++;
+                if (page_crossed(old_pc, cpu->pc)) cpu->cycles++;
+            }
+            break;
+        }
+        // BCS - Branch on Carry Set
+        case 0xB0: {
+            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            cpu->cycles += 2;
+            if (cpu->status & FLAG_C) {
+                uint16_t old_pc = cpu->pc;
+                cpu->pc += offset;
+                cpu->cycles++;
+                if (page_crossed(old_pc, cpu->pc)) cpu->cycles++;
+            }
+            break;
+        }
+        // BEQ - Branch on Result Zero
+        case 0xF0: {
+            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            cpu->cycles += 2;
+            if (cpu->status & FLAG_Z) {
+                uint16_t old_pc = cpu->pc;
+                cpu->pc += offset;
+                cpu->cycles++;
+                if (page_crossed(old_pc, cpu->pc)) cpu->cycles++;
+            }
+            break;
+        }
+        // BNE - Branch on Result not Zero
+        case 0xD0: {
+            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            cpu->cycles += 2;
+            if (!(cpu->status & FLAG_Z)) {
+                uint16_t old_pc = cpu->pc;
+                cpu->pc += offset;
+                cpu->cycles++;
+                if (page_crossed(old_pc, cpu->pc)) cpu->cycles++;
+            }
+            break;
+        }
+        // BMI - Branch on Result Minus
+        case 0x30: {
+            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            cpu->cycles += 2;
+            if (cpu->status & FLAG_N) {
+                uint16_t old_pc = cpu->pc;
+                cpu->pc += offset;
+                cpu->cycles++;
+                if (page_crossed(old_pc, cpu->pc)) cpu->cycles++;
+            }
+            break;
+        }
+        // BPL - Branch on Result Plus
+        case 0x10: {
+            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            cpu->cycles += 2;
+            if (!(cpu->status & FLAG_N)) {
+                uint16_t old_pc = cpu->pc;
+                cpu->pc += offset;
+                cpu->cycles++;
+                if (page_crossed(old_pc, cpu->pc)) cpu->cycles++;
+            }
+            break;
+        }
+        // BVS - Branch on Overflow Set
+        case 0x70: {
+            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            cpu->cycles += 2;
+            if (cpu->status & FLAG_V) {
+                uint16_t old_pc = cpu->pc;
+                cpu->pc += offset;
+                cpu->cycles++;
+                if (page_crossed(old_pc, cpu->pc)) cpu->cycles++;
+            }
+            break;
+        }
+        // BVC - Branch on Overflow Clear
+        case 0x50: {
+            int8_t offset = (int8_t)bus_read(cpu->pc++);
+            cpu->cycles += 2;
+            if (!(cpu->status & FLAG_V)) {
+                uint16_t old_pc = cpu->pc;
+                cpu->pc += offset;
+                cpu->cycles++;
+                if (page_crossed(old_pc, cpu->pc)) cpu->cycles++;
+            }
+            break;
+        }
 
-        /*
-         * BCS - Branch on Carry Set
-         * branch if C = 1                 N Z C I D V
-         *                                 - - - - - -
-         * relative        BCS oper         B0    2      2**
-         */
+        // Flag instructions
+        // CLC - Clear Carry Flag
+        case 0x18: {
+            cpu->status &= ~FLAG_C;
+            cpu->cycles += 2;
+            break;
+        }
+        // SEC - Set Carry Flag
+        case 0x38: {
+            cpu->status |= FLAG_C;
+            cpu->cycles += 2;
+            break;
+        }
+        // CLD - Clear Decimal Mode
+        case 0xD8: {
+            cpu->status &= ~FLAG_D;
+            cpu->cycles += 2;
+            break;
+        }
+        // SED - Set Decimal Flag
+        case 0xF8: {
+            cpu->status |= FLAG_D;
+            cpu->cycles += 2;
+            break;
+        }
+        // CLI - Clear Interrupt Disable Bit
+        case 0x58: {
+            cpu->status &= ~FLAG_I;
+            cpu->cycles += 2;
+            break;
+        }
+        // SEI - Set Interrupt Disable Status
+        case 0x78: {
+            cpu->status |= FLAG_I;
+            cpu->cycles += 2;
+            break;
+        }
+        // CLV - Clear Overflow Flag
+        case 0xB8: {
+            cpu->status &= ~FLAG_V;
+            cpu->cycles += 2;
+            break;
+        }
 
-        /*
-         * BEQ - Branch on Result Zero
-         * branch if Z = 1                 N Z C I D V
-         *                                 - - - - - -
-         * relative        BEQ oper         F0    2      2**
-         */
+        // NOP - No Operation
+        case 0xEA: {
+            cpu->cycles += 2;
+            break;
+        }
 
-        /*
-         * BNE - Branch on Result not Zero
-         * branch if Z = 0                 N Z C I D V
-         *                                 - - - - - -
-         * relative        BNE oper         D0    2      2**
-         */
-
-        /*
-         * BMI - Branch on Result Minus
-         * branch if N = 1                 N Z C I D V
-         *                                 - - - - - -
-         * relative        BMI oper         30    2      2**
-         */
-
-        /*
-         * BPL - Branch on Result Plus
-         * branch if N = 0                 N Z C I D V
-         *                                 - - - - - -
-         * relative        BPL oper         10    2      2**
-         */
-
-        /*
-         * BVS - Branch on Overflow Set
-         * branch if V = 1                 N Z C I D V
-         *                                 - - - - - -
-         * relative        BVS oper         70    2      2**
-         */
-
-        /*
-         * BVC - Branch on Overflow Clear
-         * branch if V = 0                 N Z C I D V
-         *                                 - - - - - -
-         * relative        BVC oper         50    2      2**
-         */
-
-        /*
-         * CLC - Clear Carry Flag
-         * 0 -> C                          N Z C I D V
-         *                                 - - 0 - - -
-         * implied         CLC              18    1      2
-         */
-
-        /*
-         * SEC - Set Carry Flag
-         * 1 -> C                          N Z C I D V
-         *                                 - - 1 - - -
-         * implied         SEC              38    1      2
-         */
-
-        /*
-         * CLD - Clear Decimal Mode
-         * 0 -> D                          N Z C I D V
-         *                                 - - - - 0 -
-         * implied         CLD              D8    1      2
-         */
-
-        /*
-         * SED - Set Decimal Flag
-         * 1 -> D                          N Z C I D V
-         *                                 - - - - 1 -
-         * implied         SED              F8    1      2
-         */
-
-        /*
-         * CLI - Clear Interrupt Disable Bit
-         * 0 -> I                          N Z C I D V
-         *                                 - - - 0 - -
-         * implied         CLI              58    1      2
-         */
-
-        /*
-         * SEI - Set Interrupt Disable Status
-         * 1 -> I                          N Z C I D V
-         *                                 - - - 1 - -
-         * implied         SEI              78    1      2
-         */
-
-        /*
-         * CLV - Clear Overflow Flag
-         * 0 -> V                          N Z C I D V
-         *                                 - - - - - 0
-         * implied         CLV              B8    1      2
-         */
-
-        /*
-         * NOP - No Operation
-         *                                 N Z C I D V
-         *                                 - - - - - -
-         * implied         NOP              EA    1      2
-         */
-
-        /*
-         * BRK - Force Break
-         * push PC+2, push SR              N Z C I D V
-         *                                 - - - 1 - -
-         * implied         BRK              00    1      7
-         */
+        // BRK - Force Break
+        case 0x00: {
+            cpu->pc++; // BRK skips the next byte (padding)
+            bus_write(STACK_BASE + cpu->sp, (cpu->pc >> 8) & 0xFF);
+            cpu->sp--;
+            bus_write(STACK_BASE + cpu->sp, cpu->pc & 0xFF);
+            cpu->sp--;
+            bus_write(STACK_BASE + cpu->sp, cpu->status | FLAG_B | FLAG_U);
+            cpu->sp--;
+            cpu->status |= FLAG_I;
+            cpu->pc = bus_read(0xFFFE) | (bus_read(0xFFFF) << 8);
+            cpu->cycles += 7;
+            break;
+        }
 
     default:
         fprintf(stderr, "Unknown opcode: %02X at %04X\n", opcode, cpu->pc - 1);
