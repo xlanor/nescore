@@ -1,4 +1,5 @@
 #include "nes.h"
+#include <stdio.h>
 
 static void nes_tick(void *ctx) {
     NES *nes = (NES *)ctx;
@@ -18,17 +19,16 @@ void nes_init(NES *nes) {
 }
 
 int nes_load_rom(NES *nes, const char *path) {
-    int nes_load_rom(NES *nes, const char *path) {
     int result = cart_load(&nes->cart, path);
     if (result == 0) {
         nes->bus.cart = &nes->cart;
     }
     return result;
 }
-}
 
 void nes_reset(NES *nes) {
-    cpu_reset(&nes->cpu);
+    cpu_reset(&nes->cpu);  // arms reset_pending
+    cpu_step(&nes->cpu);   // runs the 7-cycle reset sequence, ticks PPU 21 times
 }
 
 void nes_step_frame(NES *nes) {
@@ -40,4 +40,17 @@ void nes_step_frame(NES *nes) {
 
 const uint8_t *nes_get_framebuffer(NES *nes) {
     return nes->ppu.framebuffer;
+}
+
+void nes_trace(NES *nes) {
+    printf("%04X  A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%llu\n",
+        nes->cpu.pc,
+        nes->cpu.a,
+        nes->cpu.x,
+        nes->cpu.y,
+        nes->cpu.status,
+        nes->cpu.sp,
+        nes->ppu.scanline,
+        nes->ppu.dot,
+        (unsigned long long)nes->cpu.cycles);
 }

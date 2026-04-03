@@ -2,7 +2,9 @@
 #define CPU_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "bus/bus.h"
+
 
 // Status flag bits
 #define FLAG_C 0x01  // Carry
@@ -29,11 +31,18 @@ typedef struct {
     uint8_t  status;
     uint64_t cycles; 
 
-    // FSM 
-    uint8_t  opcode;
-    uint8_t  cycle; 
-    uint16_t addr;
-    uint8_t  data;
+    // FSM
+    uint8_t      opcode;
+    uint8_t      cycle;
+    uint16_t     addr;
+    uint8_t      data;
+
+    // Interrupt lines
+    // https://www.nesdev.org/wiki/CPU_interrupts
+    bool reset_pending;
+    bool nmi_pending;
+    bool irq_pending;
+    int active_interrupt;
 
     Bus *bus;
 } CPU;

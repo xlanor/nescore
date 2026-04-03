@@ -52,9 +52,9 @@ int cart_load(Cart *cart, const char *path) {
     cart -> battery = (flags6 & 0x02) != 0;
     cart -> four_screen = (flags6 & 0x08) != 0;
     if(cart->four_screen) {
-        cart->mirroring = 0;
+        cart->mirroring = MIRROR_HORIZONTAL;  // four-screen overrides, treat as horizontal
     }else {
-        cart->mirroring = flags6 & 0x01;
+        cart->mirroring = (flags6 & 0x01) ? MIRROR_VERTICAL : MIRROR_HORIZONTAL;
     }
     if (flags6 & 0x04) {
         fseek(f, 512, SEEK_CUR);

@@ -20,16 +20,16 @@ void cpu_init(CPU *cpu) {
     cpu->cycle = 0;
     cpu->addr = 0;
     cpu->data = 0;
+    cpu->reset_pending    = false;
+    cpu->nmi_pending      = false;
+    cpu->irq_pending      = false;
+    cpu->active_interrupt = 0;
 }
 
+// Arms the reset sequence. The 7-cycle hardware sequence runs through
+// cpu_tick as PAT_RESET — see https://www.nesdev.org/wiki/CPU_interrupts
 void cpu_reset(CPU *cpu) {
-    uint16_t lo = bus_read(cpu->bus, 0xFFFC);
-    uint16_t hi = bus_read(cpu->bus, 0xFFFD);
-    cpu->pc = (hi << 8) | lo;
-    cpu->sp = 0xFD;
-    cpu->status = FLAG_U | FLAG_I;
-    cpu->cycles = 7;
-    cpu->cycle = 0;
+    cpu->reset_pending = true;
 }
 
 void cpu_trace(CPU *cpu) {
@@ -49,14 +49,38 @@ void cpu_tick(CPU *cpu) {
     Bus *bus = cpu->bus;
 
     if (cpu->cycle == 0) {
+        // Interrupt priority: RESET > NMI > IRQ
+        // https://www.nesdev.org/wiki/CPU_interrupts
+        if (cpu->reset_pending) {
+            cpu->reset_pending    = false;
+            cpu->active_interrupt = PAT_RESET;
+            cpu->sp               = 0x00;  // cold boot: 0x00 - 3 = 0xFD after phantom stack reads
+            cpu->status           = FLAG_U;
+            bus_read(bus, cpu->pc);  // cycle 1: dummy read, PC not incremented
+            cpu->cycle = 2;
+            return;
+        }
+        if (cpu->nmi_pending) {
+            cpu->nmi_pending      = false;
+            cpu->active_interrupt = PAT_NMI;
+            bus_read(bus, cpu->pc);  // cycle 1: dummy read
+            cpu->cycle = 2;
+            return;
+        }
+        if (cpu->irq_pending && !(cpu->status & FLAG_I)) {
+            cpu->irq_pending      = false;
+            cpu->active_interrupt = PAT_IRQ;
+            bus_read(bus, cpu->pc);  // cycle 1: dummy read
+            cpu->cycle = 2;
+            return;
+        }
         cpu->opcode = bus_read(bus, cpu->pc++);
         cpu->cycle = 1;
-        cpu->cycles++;
         return;
     }
 
     const OpcodeEntry *entry = &opcode_table[cpu->opcode];
-    CyclePattern pat = entry->pattern;
+    CyclePattern pat = cpu->active_interrupt ? cpu->active_interrupt : entry->pattern;
 
     switch (pat) {
 
@@ -835,6 +859,129 @@ void cpu_tick(CPU *cpu) {
         }
         break;
 
+    // RESET: same 7-cycle sequence as IRQ/NMI but writes suppressed (reads) on cycles 3-5
+    // https://www.nesdev.org/wiki/CPU_interrupts
+    // cycle 1 handled at cycle 0 dispatch (dummy read of PC)
+    case PAT_RESET:
+        switch (cpu->cycle) {
+        case 2:
+            bus_read(bus, cpu->pc);          // dummy read, PC not incremented
+            cpu->cycle = 3;
+            break;
+        case 3:
+            bus_read(bus, STACK_BASE + cpu->sp);  // phantom read (no write)
+            cpu->sp--;
+            cpu->cycle = 4;
+            break;
+        case 4:
+            bus_read(bus, STACK_BASE + cpu->sp);  // phantom read (no write)
+            cpu->sp--;
+            cpu->cycle = 5;
+            break;
+        case 5:
+            bus_read(bus, STACK_BASE + cpu->sp);  // phantom read (no write)
+            cpu->sp--;
+            cpu->cycle = 6;
+            break;
+        case 6:
+            cpu->addr = bus_read(bus, 0xFFFC);
+            cpu->status |= FLAG_I;
+            cpu->cycle = 7;
+            break;
+        case 7:
+            cpu->addr |= bus_read(bus, 0xFFFD) << 8;
+            cpu->pc = cpu->addr;
+            cpu->active_interrupt = 0;
+            cpu->cycle = 0;
+            break;
+        }
+        break;
+
+    // NMI: edge-triggered, vector $FFFA/$FFFB, B flag clear
+    // cycle 1 handled at cycle 0 dispatch (dummy read of PC)
+    case PAT_NMI:
+        switch (cpu->cycle) {
+        case 2:
+            bus_read(bus, cpu->pc);
+            cpu->cycle = 3;
+            break;
+        case 3:
+            bus_write(bus, STACK_BASE + cpu->sp, (cpu->pc >> 8) & 0xFF);
+            cpu->sp--;
+            cpu->cycle = 4;
+            break;
+        case 4:
+            bus_write(bus, STACK_BASE + cpu->sp, cpu->pc & 0xFF);
+            cpu->sp--;
+            // NMI hijack check happens here — already PAT_NMI so no change needed
+            cpu->cycle = 5;
+            break;
+        case 5:
+            bus_write(bus, STACK_BASE + cpu->sp, cpu->status & ~FLAG_B);
+            cpu->sp--;
+            cpu->cycle = 6;
+            break;
+        case 6:
+            cpu->addr = bus_read(bus, 0xFFFA);
+            cpu->status |= FLAG_I;
+            cpu->cycle = 7;
+            break;
+        case 7:
+            cpu->addr |= bus_read(bus, 0xFFFB) << 8;
+            cpu->pc = cpu->addr;
+            cpu->active_interrupt = 0;
+            cpu->cycle = 0;
+            break;
+        }
+        break;
+
+    // IRQ: level-sensitive (checked when I=0), vector $FFFE/$FFFF, B flag clear
+    // NMI can hijack at cycle 4 (after PCL push, before P push)
+    // cycle 1 handled at cycle 0 dispatch (dummy read of PC)
+    case PAT_IRQ:
+        switch (cpu->cycle) {
+        case 2:
+            bus_read(bus, cpu->pc);
+            cpu->cycle = 3;
+            break;
+        case 3:
+            bus_write(bus, STACK_BASE + cpu->sp, (cpu->pc >> 8) & 0xFF);
+            cpu->sp--;
+            cpu->cycle = 4;
+            break;
+        case 4:
+            bus_write(bus, STACK_BASE + cpu->sp, cpu->pc & 0xFF);
+            cpu->sp--;
+            // NMI hijack: if NMI asserted, switch to NMI vector
+            if (cpu->nmi_pending) {
+                cpu->nmi_pending      = false;
+                cpu->active_interrupt = PAT_NMI;
+            }
+            cpu->cycle = 5;
+            break;
+        case 5:
+            bus_write(bus, STACK_BASE + cpu->sp, cpu->status & ~FLAG_B);
+            cpu->sp--;
+            cpu->cycle = 6;
+            break;
+        case 6: {
+            uint16_t vec_lo = (cpu->active_interrupt == PAT_NMI) ? 0xFFFA : 0xFFFE;
+            cpu->addr = bus_read(bus, vec_lo);
+            cpu->status |= FLAG_I;
+            cpu->cycle = 7;
+            break;
+        }
+        case 7: {
+            uint16_t vec_hi = (cpu->active_interrupt == PAT_NMI) ? 0xFFFB : 0xFFFF;
+            cpu->addr |= bus_read(bus, vec_hi) << 8;
+            cpu->pc = cpu->addr;
+            cpu->active_interrupt = 0;
+            cpu->cycle = 0;
+            break;
+        }
+        }
+        break;
+
     case PAT_JMP_ABS:
         switch (cpu->cycle) {
         case 1:
@@ -882,6 +1029,4 @@ void cpu_tick(CPU *cpu) {
         cpu->cycle = 0;
         break;
     }
-
-    cpu->cycles++;
 }

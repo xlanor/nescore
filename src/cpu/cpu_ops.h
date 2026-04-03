@@ -35,8 +35,11 @@ typedef enum {
     PAT_RTS, 
     PAT_RTI, 
     PAT_BRK,
-    PAT_JMP_ABS, 
+    PAT_JMP_ABS,
     PAT_JMP_IND,
+    PAT_RESET,
+    PAT_NMI,
+    PAT_IRQ,
 } CyclePattern;
 
 typedef void (*op_fn)(CPU *cpu);

@@ -18,5 +18,6 @@ int            nes_load_rom(NES *nes, const char *path);
 void           nes_reset(NES *nes);
 void           nes_step_frame(NES *nes);
 const uint8_t *nes_get_framebuffer(NES *nes);
+void           nes_trace(NES *nes);
 
 #endif

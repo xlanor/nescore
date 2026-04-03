@@ -1,46 +1,38 @@
-#include "cpu/cpu.h"
-#include "bus/bus.h"
-#include "cart/cart.h"
+#include "nes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <rom.nes>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <rom.nes> [--nestest]\n", argv[0]);
         return 1;
     }
 
-    Cart cart;
-    if (cart_load(&cart, argv[1]) != 0) {
+    NES nes;
+    nes_init(&nes);
+
+    if (nes_load_rom(&nes, argv[1]) != 0) {
         return 1;
     }
-
-    Bus bus;
-    bus_init(&bus);
-    bus.cart = &cart;
 
     int nestest = 0;
     if (argc >= 3 && strcmp(argv[2], "--nestest") == 0) {
         nestest = 1;
     }
 
-    CPU cpu;
-    cpu_init(&cpu);
-    cpu.bus = &bus;
-    cpu_reset(&cpu);
+    nes_reset(&nes);
 
     if (nestest) {
-        cpu.pc = 0xC000;
+        nes.cpu.pc = 0xC000;
         for (int i = 0; i < 8991; i++) {
-            cpu_trace(&cpu);
-            cpu_step(&cpu);
+            nes_trace(&nes);
+            cpu_step(&nes.cpu);
         }
     } else {
-        printf("PC starts at: %04X\n", cpu.pc);
+        printf("PC starts at: %04X\n", nes.cpu.pc);
         for (int i = 0; i < 100; i++) {
-            cpu_step(&cpu);
+            cpu_step(&nes.cpu);
         }
     }
 

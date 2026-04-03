@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define MIRROR_HORIZONTAL 0
+#define MIRROR_VERTICAL   1
+
 typedef struct {
     uint8_t  *prg_rom;
     uint32_t  prg_size;
