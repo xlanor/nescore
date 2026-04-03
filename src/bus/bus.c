@@ -19,6 +19,7 @@ void bus_init(Bus * bus) {
     bus ->tick = NULL;
     bus->tick_ctx = NULL;
     bus->cart = NULL;
+    bus->ppu = NULL;
 }
 
 uint8_t bus_read(Bus *bus, uint16_t addr) {
@@ -27,8 +28,7 @@ uint8_t bus_read(Bus *bus, uint16_t addr) {
     if (addr <= 0x1FFF) {
         return bus->ram[addr & 0x07FF];
     } else if (addr <= 0x3FFF) {
-        // TODO: PPU registers (addr & 0x2007)
-        return 0;
+        return ppu_read_register(bus->ppu, (addr & 0x07)); 
     } else if (addr <= 0x4017) {
         // TODO: APU and I/O registers
         return 0;
@@ -52,7 +52,7 @@ void bus_write(Bus *bus, uint16_t addr, uint8_t val) {
     if (addr <= 0x1FFF) {
         bus->ram[addr & 0x07FF] = val;
     } else if (addr <= 0x3FFF) {
-        // TODO: PPU registers
+        ppu_write_register(bus->ppu, (addr & 0x07), val); 
     } else if (addr <= 0x4017) {
         // TODO: APU and I/O registers
     } else if (addr <= 0x401F) {

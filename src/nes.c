@@ -14,6 +14,7 @@ void nes_init(NES *nes) {
     cpu_init(&nes->cpu);
     ppu_init(&nes->ppu);
     nes->cpu.bus = &nes->bus;
+    nes->bus.ppu = &nes->ppu;
     nes->bus.tick = nes_tick;
     nes->bus.tick_ctx = nes;
 }
