@@ -258,6 +258,16 @@ void ppu_write_register(PPU *ppu, uint8_t reg, uint8_t val) {
         // Two writes, toggled by w latch
         // 1st write: ..AA AAAA - high byte of VRAM address
         // 2nd write: AAAA AAAA - low byte, then copy t to v
+        if (!ppu->w) {
+            // 6 bytes, write to 15-8
+            uint16_t addr_high = (uint16_t)(val & 0x3F) << 8;
+            ppu->t = (ppu->t & 0x00FF) | addr_high;             
+        }else {
+            uint16_t addr_low = (uint16_t)(val & 0xFF);
+            ppu -> t = (ppu->t & 0xFF00) | addr_low;
+            ppu->v = ppu->t;
+        }
+        ppu->w = !ppu->w;
         break;
 
     case PPU_REG_DATA:
