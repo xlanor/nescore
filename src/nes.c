@@ -7,6 +7,10 @@ static void nes_tick(void *ctx) {
     ppu_tick(&nes->ppu);
     ppu_tick(&nes->ppu);
     ppu_tick(&nes->ppu);
+    if(nes->ppu.nmi_occurred) {
+       nes->cpu.nmi_pending = true;
+       nes->ppu.nmi_occurred = false; 
+    }
 }
 
 void nes_init(NES *nes) {

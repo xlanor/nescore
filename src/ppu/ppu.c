@@ -27,10 +27,11 @@ void ppu_tick(PPU *ppu) {
     // https://www.nesdev.org/wiki/PPU_registers
     // 0x80 for bit 7 (Vblank)
     if(ppu->scanline == PPU_SCANLINE_VBLANK && ppu-> dot == 1) {
-        ppu->status |= 0x80;
+        ppu->status |= PPUSTATUS_VBLANK;
+        ppu->nmi_occurred = true;
     }
     if(ppu->scanline == PPU_SCANLINE_PRERENDER && ppu-> dot == 1) {
-        ppu->status &= ~0x80;
+        ppu->status &= ~PPUSTATUS_VBLANK;
     }
 }
 
