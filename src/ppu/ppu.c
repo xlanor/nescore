@@ -139,14 +139,132 @@ void ppu_bus_write(PPU *ppu, uint16_t addr, uint8_t val) {
     }
 }
 
+// https://www.nesdev.org/wiki/PPU_registers
 uint8_t ppu_read_register(PPU *ppu, uint8_t reg) {
-    (void)ppu;
-    (void)reg;
+    switch (reg) {
+
+    case PPU_REG_STATUS:
+        // 7  bit  0
+        // ---- ----
+        // VSOx xxxx
+        // |||| ||||
+        // |||+-++++- Open bus (unused)
+        // ||+------- Sprite overflow flag
+        // |+-------- Sprite 0 hit flag
+        // +--------- Vblank flag
+        break;
+
+    case PPU_REG_OAMDATA:
+        // 7  bit  0
+        // ---- ----
+        // DDDD DDDD
+        // ++++-++++- OAM data
+        break;
+
+    case PPU_REG_DATA:
+        // 7  bit  0
+        // ---- ----
+        // DDDD DDDD
+        // ++++-++++- VRAM data (buffered)
+        break;
+    }
+
     return 0;
 }
 
 void ppu_write_register(PPU *ppu, uint8_t reg, uint8_t val) {
-    (void)ppu;
-    (void)reg;
-    (void)val;
+    switch (reg) {
+
+    case PPU_REG_CTRL:
+        // R-M-W
+        // clear old nametable bits in t, write new nametable bits from val.
+        // 7  bit  0
+        // ---- ----
+        // VPHB SINN
+        // |||| ||||
+        // |||| ||++- Base nametable address
+        // |||| |+--- VRAM address increment (0: +1 across, 1: +32 down)
+        // |||| +---- Sprite pattern table address (0: $0000, 1: $1000)
+        // |||+------ Background pattern table address (0: $0000, 1: $1000)
+        // ||+------- Sprite size (0: 8x8, 1: 8x16)
+        // |+-------- PPU master/slave select
+        // +--------- Vblank NMI enable
+        ppu->ctrl = val;
+        ppu->t = ppu->t & 0xF3FF;
+        uint8_t new_nametables = val & 0x03;
+        // move to 10/11 bit, in t
+        new_nametables = new_nametables << 10;
+        ppu->t |= new_nametables;
+        break;
+
+    case PPU_REG_MASK:
+        // 7  bit  0
+        // ---- ----
+        // BGRs bMmG
+        // |||| ||||
+        // |||| |||+- Greyscale (0: normal color, 1: greyscale)
+        // |||| ||+-- 1: Show background in leftmost 8 pixels, 0: Hide
+        // |||| |+--- 1: Show sprites in leftmost 8 pixels, 0: Hide
+        // |||| +---- 1: Enable background rendering
+        // |||+------ 1: Enable sprite rendering
+        // ||+------- Emphasize red (green on PAL/Dendy)
+        // |+-------- Emphasize green (red on PAL/Dendy)
+        // +--------- Emphasize blue
+        ppu -> mask = val;
+        break;
+
+    case PPU_REG_OAMADDR:
+        // 7  bit  0
+        // ---- ----
+        // AAAA AAAA
+        // ++++-++++- OAM address
+        ppu->oam_addr = val;
+        break;
+
+    case PPU_REG_OAMDATA:
+        // 7  bit  0
+        // ---- ----
+        // DDDD DDDD
+        // ++++-++++- OAM data (write increments oam_addr)
+        ppu->oam[ppu->oam_addr] = val;
+        ppu->oam_addr++;
+        break;
+
+    case PPU_REG_SCROLL:
+        // Two writes, toggled by w latch
+        // 1st write: XXXX XXXX - X scroll
+        // 2nd write: YYYY YYYY - Y scroll
+        if (!ppu->w) {
+            // take the bottom 3 bits first
+            uint8_t fine_x = val & 0x07; 
+            uint8_t coarse_x = val >> 3;
+            ppu->fine_x = fine_x;
+            // clear last 4 bits;
+            ppu->t = (ppu->t & 0xFFE0) | coarse_x;
+        } else {
+            // shift it to get ready for OR.. bits 9-5
+            uint16_t coarse_y =  (uint16_t)(val >> 3) << 5;
+            // bits 14-12
+            uint16_t fine_y =  (uint16_t)(val & 0x07) << 12;
+            ppu ->t = ppu -> t & 0xFC1F & 0x8FFF;
+            ppu-> t |= coarse_y;
+            ppu-> t |= fine_y; 
+        }
+        // loop back to other w
+        ppu->w = !ppu->w;
+        break;
+
+    case PPU_REG_ADDR:
+        // Two writes, toggled by w latch
+        // 1st write: ..AA AAAA - high byte of VRAM address
+        // 2nd write: AAAA AAAA - low byte, then copy t to v
+        break;
+
+    case PPU_REG_DATA:
+        // 7  bit  0
+        // ---- ----
+        // DDDD DDDD
+        // ++++-++++- VRAM data, auto-increment v after write
+        break;
+    }
 }

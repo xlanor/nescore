@@ -43,49 +43,96 @@
 #define PPUSTATUS_OVERFLOW    0x20  // Sprite overflow
 
 typedef struct {
-    int scanline;
-    int dot;
+    // Timing
+    int      scanline;   // 0-261 (0-239 visible, 240 post, 241-260 vblank, 261 pre-render)
+    int      dot;        // 0-340 dots per scanline
     uint64_t frame;
-    bool odd_frame;
+    bool     odd_frame;
 
+    // CPU-facing registers ($2000-$2007)
+    // https://www.nesdev.org/wiki/PPU_registers
+    // 7  bit  0
+    // VPHB SINN - ctrl
+    // BGRs bMmG - mask
+    // VSOx xxxx - status
+    // ---- ----
+    // VPHB SINN
+    // |||| ||||
+    // |||| ||++- Base nametable address
+    // |||| |+--- VRAM address increment (0: +1 across, 1: +32 down)
+    // |||| +---- Sprite pattern table address (0: $0000, 1: $1000)
+    // |||+------ Background pattern table address (0: $0000, 1: $1000)
+    // ||+------- Sprite size (0: 8x8, 1: 8x16)
+    // |+-------- PPU master/slave select
+    // +--------- Vblank NMI enable
     uint8_t ctrl;
+    // 7  bit  0
+    // ---- ----
+    // BGRs bMmG
+    // |||| ||||
+    // |||| |||+- Greyscale (0: normal color, 1: greyscale)
+    // |||| ||+-- 1: Show background in leftmost 8 pixels, 0: Hide
+    // |||| |+--- 1: Show sprites in leftmost 8 pixels, 0: Hide
+    // |||| +---- 1: Enable background rendering
+    // |||+------ 1: Enable sprite rendering
+    // ||+------- Emphasize red (green on PAL/Dendy)
+    // |+-------- Emphasize green (red on PAL/Dendy)
+    // +--------- Emphasize blue
     uint8_t mask;
     uint8_t status;
+    // 7  bit  0
+    // ---- ----
+    // AAAA AAAA
+    // ++++-++++- OAM address
     uint8_t oam_addr;
 
-    uint16_t v;
-    uint16_t t;
-    uint8_t  fine_x;
-    bool     w;
+    // Loopy scroll registers
+    // https://www.nesdev.org/wiki/PPU_scrolling#PPU_internal_registers
+    // yyy NN YYYYY XXXXX
+    // ||| || ||||| +++++- coarse X (bits 0-4)
+    // ||| || +++++------- coarse Y (bits 5-9)
+    // ||| ++------------- nametable select (bits 10-11)
+    // +++---------------- fine Y (bits 12-14)
+    uint16_t v;       // current VRAM address (15 bits)
+    uint16_t t;       // temporary VRAM address / scroll latch (15 bits)
+    uint8_t  fine_x;  // fine X scroll (3 bits)
+    bool     w;       // write latch: 0=first write, 1=second write
 
-    uint8_t data_buf;
+    uint8_t data_buf; // PPUDATA read buffer (reads are delayed by one)
 
-    uint8_t oam[256];
-    uint8_t oam2[32];
+    // Object Attribute Memory (sprites)
+    uint8_t oam[256];  // primary OAM: 64 sprites × 4 bytes
+    uint8_t oam2[32];  // secondary OAM: 8 sprites for current scanline
 
-    uint8_t vram[2048];
-    uint8_t palette[32];
+    // Internal RAM
+    uint8_t vram[2048];   // nametable RAM (2KB, two 1KB banks)
+    uint8_t palette[32];  // palette RAM (32 bytes)
 
-    uint16_t bg_shift_lo;
-    uint16_t bg_shift_hi;
-    uint16_t at_shift_lo;
-    uint16_t at_shift_hi;
+    // Background shift registers (fed each tile fetch, consumed each dot)
+    uint16_t bg_shift_lo;  // pattern table low bits
+    uint16_t bg_shift_hi;  // pattern table high bits
+    uint16_t at_shift_lo;  // attribute low bits
+    uint16_t at_shift_hi;  // attribute high bits
 
-    uint8_t nt_byte;
-    uint8_t at_byte;
-    uint8_t bg_lo;
-    uint8_t bg_hi;
+    // Tile fetch latches (filled during fetch, loaded into shift registers)
+    uint8_t nt_byte;  // nametable byte
+    uint8_t at_byte;  // attribute byte
+    uint8_t bg_lo;    // pattern table low byte
+    uint8_t bg_hi;    // pattern table high byte
 
+    // Output
     uint8_t framebuffer[NES_WIDTH * NES_HEIGHT];
-    bool frame_complete;
+    bool    frame_complete;
 
-    bool nmi_output;
-    bool nmi_occurred;
-    bool nmi_prev;
+    // NMI signalling to CPU
+    bool nmi_output;   // PPUCTRL bit 7 (NMI enable)
+    bool nmi_occurred; // PPUSTATUS bit 7 (VBlank set)
+    bool nmi_prev;     // previous NMI state (edge detection)
 
+    // Cartridge-supplied data
     uint8_t *chr_rom;
     uint32_t chr_size;
-    uint8_t mirroring;
+    uint8_t  mirroring;  // MIRROR_HORIZONTAL or MIRROR_VERTICAL
 } PPU;
 
 void    ppu_init(PPU *ppu);
