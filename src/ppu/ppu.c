@@ -68,7 +68,7 @@ void ppu_tick(PPU *ppu) {
 static uint16_t nametable_mirror(PPU *ppu, uint16_t addr) {
     // mask off top 4 bits.
     // keep the last 12 bits.
-    // nametable region starts at 0x2000 all the way to 0x3EFF
+    // nametable region starts at PPU_NAMETABLE_START all the way to 0x3EFF
     addr &= 0x0FFF;
     // gap between each slot is 2^10
     // to check which slot, divide by 1024 basically
@@ -103,15 +103,15 @@ uint8_t ppu_bus_read(PPU *ppu, uint16_t addr) {
     // within 14 bits.
     addr &= 0x3FFF;
     // 0x0000 - 0x1FFF, pattern tables 
-    if (addr < 0x2000) {
+    if (addr < PPU_NAMETABLE_START) {
         // read chr rom at that address
         return ppu->chr_rom[addr % ppu->chr_size];
-    // 0x2000-0x3EFF
-    } else if (addr < 0x3F00) {
+    // PPU_NAMETABLE_START-0x3EFF
+    } else if (addr < PPU_PALETTE_START) {
         return ppu->vram[nametable_mirror(ppu, addr)];
     } else {
         // Palette RAM (32 bytes, mirrored every 0x20)
-        // 0x3F10/0x3F14/0x3F18/0x3F1C are mirrors of 0x3F00/0x3F04/0x3F08/0x3F0C
+        // 0x3F10/0x3F14/0x3F18/0x3F1C are mirrors of PPU_PALETTE_START/0x3F04/0x3F08/0x3F0C
         // 0x13 - check bit 4, 1, 0, check if 4th bit is set, 1, 0 clear
         // aka: 0001 0000 should be the end result
         // if so, map to backdrop
@@ -127,10 +127,10 @@ uint8_t ppu_bus_read(PPU *ppu, uint16_t addr) {
 void ppu_bus_write(PPU *ppu, uint16_t addr, uint8_t val) {
     addr &= 0x3FFF;
 
-    if (addr < 0x2000) {
+    if (addr < PPU_NAMETABLE_START) {
         // CHR-ROM — on mapper 0 this is read-only, ignore
         // TODO: handle mappers with CHR-RAM
-    } else if (addr < 0x3F00) {
+    } else if (addr < PPU_PALETTE_START) {
         ppu->vram[nametable_mirror(ppu, addr)] = val;
 
     } else {
@@ -142,31 +142,43 @@ void ppu_bus_write(PPU *ppu, uint16_t addr, uint8_t val) {
 // https://www.nesdev.org/wiki/PPU_registers
 uint8_t ppu_read_register(PPU *ppu, uint8_t reg) {
     switch (reg) {
+        case PPU_REG_STATUS: {
+            // 7  bit  0
+            // ---- ----
+            // VSOx xxxx
+            // |||| ||||
+            // |||+-++++- Open bus (unused)
+            // ||+------- Sprite overflow flag
+            // |+-------- Sprite 0 hit flag
+            // +--------- Vblank flag
+            uint8_t ret = ppu->status;
+            ppu->status &= ~PPUSTATUS_VBLANK;
+            ppu->w = false;
+            return ret;
+        }
 
-    case PPU_REG_STATUS:
-        // 7  bit  0
-        // ---- ----
-        // VSOx xxxx
-        // |||| ||||
-        // |||+-++++- Open bus (unused)
-        // ||+------- Sprite overflow flag
-        // |+-------- Sprite 0 hit flag
-        // +--------- Vblank flag
-        break;
+        case PPU_REG_OAMDATA: {
+            // 7  bit  0
+            // ---- ----
+            // DDDD DDDD
+            // ++++-++++- OAM data
+            return ppu->oam[ppu->oam_addr];
+        }
 
-    case PPU_REG_OAMDATA:
-        // 7  bit  0
-        // ---- ----
-        // DDDD DDDD
-        // ++++-++++- OAM data
-        break;
+        case PPU_REG_DATA: {
+            // 7  bit  0
+            // ---- ----
+            // DDDD DDDD
+            // ++++-++++- VRAM data (buffered)
+            uint8_t ret = ppu->data_buf;
+            ppu->data_buf = ppu_bus_read(ppu, ppu->v);
+            if (ppu->v >= PPU_PALETTE_START) {
+                ret = ppu->data_buf;
+            }
+            ppu->v += (ppu->ctrl & PPUCTRL_VRAM_INC32) ? 32 : 1;
+            return ret;
+        }
 
-    case PPU_REG_DATA:
-        // 7  bit  0
-        // ---- ----
-        // DDDD DDDD
-        // ++++-++++- VRAM data (buffered)
-        break;
     }
 
     return 0;
@@ -175,106 +187,111 @@ uint8_t ppu_read_register(PPU *ppu, uint8_t reg) {
 void ppu_write_register(PPU *ppu, uint8_t reg, uint8_t val) {
     switch (reg) {
 
-    case PPU_REG_CTRL:
-        // R-M-W
-        // clear old nametable bits in t, write new nametable bits from val.
-        // 7  bit  0
-        // ---- ----
-        // VPHB SINN
-        // |||| ||||
-        // |||| ||++- Base nametable address
-        // |||| |+--- VRAM address increment (0: +1 across, 1: +32 down)
-        // |||| +---- Sprite pattern table address (0: $0000, 1: $1000)
-        // |||+------ Background pattern table address (0: $0000, 1: $1000)
-        // ||+------- Sprite size (0: 8x8, 1: 8x16)
-        // |+-------- PPU master/slave select
-        // +--------- Vblank NMI enable
-        ppu->ctrl = val;
-        ppu->t = ppu->t & 0xF3FF;
-        uint8_t new_nametables = val & 0x03;
-        // move to 10/11 bit, in t
-        new_nametables = new_nametables << 10;
-        ppu->t |= new_nametables;
-        break;
-
-    case PPU_REG_MASK:
-        // 7  bit  0
-        // ---- ----
-        // BGRs bMmG
-        // |||| ||||
-        // |||| |||+- Greyscale (0: normal color, 1: greyscale)
-        // |||| ||+-- 1: Show background in leftmost 8 pixels, 0: Hide
-        // |||| |+--- 1: Show sprites in leftmost 8 pixels, 0: Hide
-        // |||| +---- 1: Enable background rendering
-        // |||+------ 1: Enable sprite rendering
-        // ||+------- Emphasize red (green on PAL/Dendy)
-        // |+-------- Emphasize green (red on PAL/Dendy)
-        // +--------- Emphasize blue
-        ppu -> mask = val;
-        break;
-
-    case PPU_REG_OAMADDR:
-        // 7  bit  0
-        // ---- ----
-        // AAAA AAAA
-        // ++++-++++- OAM address
-        ppu->oam_addr = val;
-        break;
-
-    case PPU_REG_OAMDATA:
-        // 7  bit  0
-        // ---- ----
-        // DDDD DDDD
-        // ++++-++++- OAM data (write increments oam_addr)
-        ppu->oam[ppu->oam_addr] = val;
-        ppu->oam_addr++;
-        break;
-
-    case PPU_REG_SCROLL:
-        // Two writes, toggled by w latch
-        // 1st write: XXXX XXXX - X scroll
-        // 2nd write: YYYY YYYY - Y scroll
-        if (!ppu->w) {
-            // take the bottom 3 bits first
-            uint8_t fine_x = val & 0x07; 
-            uint8_t coarse_x = val >> 3;
-            ppu->fine_x = fine_x;
-            // clear last 4 bits;
-            ppu->t = (ppu->t & 0xFFE0) | coarse_x;
-        } else {
-            // shift it to get ready for OR.. bits 9-5
-            uint16_t coarse_y =  (uint16_t)(val >> 3) << 5;
-            // bits 14-12
-            uint16_t fine_y =  (uint16_t)(val & 0x07) << 12;
-            ppu ->t = ppu -> t & 0xFC1F & 0x8FFF;
-            ppu-> t |= coarse_y;
-            ppu-> t |= fine_y; 
+        case PPU_REG_CTRL: {
+            // R-M-W
+            // clear old nametable bits in t, write new nametable bits from val.
+            // 7  bit  0
+            // ---- ----
+            // VPHB SINN
+            // |||| ||||
+            // |||| ||++- Base nametable address
+            // |||| |+--- VRAM address increment (0: +1 across, 1: +32 down)
+            // |||| +---- Sprite pattern table address (0: $0000, 1: $1000)
+            // |||+------ Background pattern table address (0: $0000, 1: $1000)
+            // ||+------- Sprite size (0: 8x8, 1: 8x16)
+            // |+-------- PPU master/slave select
+            // +--------- Vblank NMI enable
+            ppu->ctrl = val;
+            ppu->t = ppu->t & 0xF3FF;
+            uint16_t new_nametables = (uint16_t)(val & 0x03) << 10;
+            ppu->t |= new_nametables;
+            break;
         }
-        // loop back to other w
-        ppu->w = !ppu->w;
-        break;
 
-    case PPU_REG_ADDR:
-        // Two writes, toggled by w latch
-        // 1st write: ..AA AAAA - high byte of VRAM address
-        // 2nd write: AAAA AAAA - low byte, then copy t to v
-        if (!ppu->w) {
-            // 6 bytes, write to 15-8
-            uint16_t addr_high = (uint16_t)(val & 0x3F) << 8;
-            ppu->t = (ppu->t & 0x00FF) | addr_high;             
-        }else {
-            uint16_t addr_low = (uint16_t)(val & 0xFF);
-            ppu -> t = (ppu->t & 0xFF00) | addr_low;
-            ppu->v = ppu->t;
+        case PPU_REG_MASK: {
+            // 7  bit  0
+            // ---- ----
+            // BGRs bMmG
+            // |||| ||||
+            // |||| |||+- Greyscale (0: normal color, 1: greyscale)
+            // |||| ||+-- 1: Show background in leftmost 8 pixels, 0: Hide
+            // |||| |+--- 1: Show sprites in leftmost 8 pixels, 0: Hide
+            // |||| +---- 1: Enable background rendering
+            // |||+------ 1: Enable sprite rendering
+            // ||+------- Emphasize red (green on PAL/Dendy)
+            // |+-------- Emphasize green (red on PAL/Dendy)
+            // +--------- Emphasize blue
+            ppu->mask = val;
+            break;
         }
-        ppu->w = !ppu->w;
-        break;
 
-    case PPU_REG_DATA:
-        // 7  bit  0
-        // ---- ----
-        // DDDD DDDD
-        // ++++-++++- VRAM data, auto-increment v after write
-        break;
+        case PPU_REG_OAMADDR: {
+            // 7  bit  0
+            // ---- ----
+            // AAAA AAAA
+            // ++++-++++- OAM address
+            ppu->oam_addr = val;
+            break;
+        }
+
+        case PPU_REG_OAMDATA: {
+            // 7  bit  0
+            // ---- ----
+            // DDDD DDDD
+            // ++++-++++- OAM data (write increments oam_addr)
+            ppu->oam[ppu->oam_addr] = val;
+            ppu->oam_addr++;
+            break;
+        }
+
+        case PPU_REG_SCROLL: {
+            // Two writes, toggled by w latch
+            // 1st write: XXXX XXXX - X scroll
+            // 2nd write: YYYY YYYY - Y scroll
+            if (!ppu->w) {
+                uint8_t fine_x   = val & 0x07;
+                uint8_t coarse_x = val >> 3;
+                ppu->fine_x = fine_x;
+                ppu->t = (ppu->t & 0xFFE0) | coarse_x;
+            } else {
+                uint16_t coarse_y = (uint16_t)(val >> 3) << 5;
+                uint16_t fine_y   = (uint16_t)(val & 0x07) << 12;
+                ppu->t = (ppu->t & 0x8C1F) | coarse_y | fine_y;
+            }
+            ppu->w = !ppu->w;
+            break;
+        }
+
+        case PPU_REG_ADDR: {
+            // Two writes, toggled by w latch
+            // 1st write: ..AA AAAA - high byte of VRAM address
+            // 2nd write: AAAA AAAA - low byte, then copy t to v
+            if (!ppu->w) {
+                uint16_t addr_high = (uint16_t)(val & 0x3F) << 8;
+                ppu->t = (ppu->t & 0x00FF) | addr_high;
+            } else {
+                uint16_t addr_low = (uint16_t)(val & 0xFF);
+                ppu->t = (ppu->t & 0xFF00) | addr_low;
+                ppu->v = ppu->t;
+            }
+            ppu->w = !ppu->w;
+            break;
+        }
+
+        case PPU_REG_DATA: {
+            // 7  bit  0
+            // ---- ----
+            // DDDD DDDD
+            // ++++-++++- VRAM data, auto-increment v after write
+            ppu_bus_write(ppu, ppu->v, val);
+            if (ppu->ctrl & PPUCTRL_VRAM_INC32) {
+                ppu->v +=32;
+            }else{
+                ppu->v ++;
+            }
+
+            break;
+        }
+       
     }
 }

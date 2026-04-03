@@ -42,6 +42,9 @@
 #define PPUSTATUS_SPRITE0_HIT 0x40  // Sprite 0 hit
 #define PPUSTATUS_OVERFLOW    0x20  // Sprite overflow
 
+#define PPU_NAMETABLE_START   0x2000
+#define PPU_PALETTE_START     0x3F00
+
 typedef struct {
     // Timing
     int      scanline;   // 0-261 (0-239 visible, 240 post, 241-260 vblank, 261 pre-render)
