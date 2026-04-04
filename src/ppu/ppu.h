@@ -45,6 +45,51 @@
 #define PPU_NAMETABLE_START   0x2000
 #define PPU_PALETTE_START     0x3F00
 
+// Rendering scanline ranges
+// https://www.nesdev.org/wiki/PPU_rendering
+#define PPU_SCANLINE_VISIBLE_FIRST  0
+#define PPU_SCANLINE_VISIBLE_LAST   239
+#define PPU_SCANLINE_POSTRENDER     240
+#define PPU_SCANLINE_PRERENDER      261
+
+// Dot ranges within a scanline
+#define PPU_DOT_IDLE                0
+#define PPU_DOT_VISIBLE_FIRST       1
+#define PPU_DOT_VISIBLE_LAST        256
+#define PPU_DOT_HORI_COPY           257
+#define PPU_DOT_PREFETCH_FIRST      321
+#define PPU_DOT_PREFETCH_LAST       336
+#define PPU_DOT_DUMMY_FIRST         337
+#define PPU_DOT_DUMMY_LAST          340
+#define PPU_DOT_VERT_COPY_FIRST     280
+#define PPU_DOT_VERT_COPY_LAST      304
+
+// Tile fetch cycle size (8 dots per tile)
+#define PPU_FETCH_CYCLE             8
+
+// Loopy register bit fields
+// https://www.nesdev.org/wiki/PPU_scrolling#PPU_internal_registers
+#define LOOPY_COARSE_X_MASK         0x001F  // bits 4-0
+#define LOOPY_COARSE_Y_MASK         0x03E0  // bits 9-5
+#define LOOPY_NT_HORI               0x0400  // bit 10: horizontal nametable select
+#define LOOPY_NT_VERT               0x0800  // bit 11: vertical nametable select
+#define LOOPY_FINE_Y_MASK           0x7000  // bits 14-12
+#define LOOPY_FINE_Y_INC            0x1000  // increment fine Y by 1
+
+// Coarse Y limits
+#define LOOPY_COARSE_Y_MAX_ROW      29      // last tile row before attribute table
+#define LOOPY_COARSE_Y_OVERFLOW     31      // max value, wraps without nametable switch
+
+// Nametable and attribute table base addresses
+#define PPU_AT_BASE                 0x23C0  // attribute table base (nametable 0)
+#define PPU_AT_OFFSET               0x03C0  // offset from nametable base to its attribute table
+
+// Pattern table base addresses
+#define PPU_PT_LEFT                 0x0000
+#define PPU_PT_RIGHT                0x1000
+#define PPU_PT_TILE_SIZE            16      // bytes per tile (8 low + 8 high)
+#define PPU_PT_PLANE_OFFSET         8       // offset from low plane to high plane
+
 typedef struct {
     // Timing
     int      scanline;   // 0-261 (0-239 visible, 240 post, 241-260 vblank, 261 pre-render)
@@ -149,5 +194,7 @@ void    ppu_write_register(PPU *ppu, uint8_t reg, uint8_t val);
 // Used during rendering to fetch tiles, attributes, palette
 uint8_t ppu_bus_read(PPU *ppu, uint16_t addr);
 void    ppu_bus_write(PPU *ppu, uint16_t addr, uint8_t val);
+
+void ppu_render_dot(PPU *ppu);
 
 #endif

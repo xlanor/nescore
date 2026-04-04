@@ -13,6 +13,7 @@ void ppu_init(PPU *ppu) {
 }
 
 void ppu_tick(PPU *ppu) {
+    ppu_render_dot(ppu);
     ppu->dot += 1;
     if (ppu->dot >= PPU_DOTS_PER_SCANLINE) {
         ppu->dot = 0;
