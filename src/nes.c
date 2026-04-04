@@ -7,9 +7,11 @@ static void nes_tick(void *ctx) {
     ppu_tick(&nes->ppu);
     ppu_tick(&nes->ppu);
     ppu_tick(&nes->ppu);
-    if(nes->ppu.nmi_occurred) {
-       nes->cpu.nmi_pending = true;
-       nes->ppu.nmi_occurred = false; 
+    if (nes->ppu.nmi_occurred) {
+        if (nes->ppu.ctrl & PPUCTRL_NMI_ENABLE) {
+            nes->cpu.nmi_pending = true;
+        }
+        nes->ppu.nmi_occurred = false;
     }
 }
 
@@ -26,7 +28,10 @@ void nes_init(NES *nes) {
 int nes_load_rom(NES *nes, const char *path) {
     int result = cart_load(&nes->cart, path);
     if (result == 0) {
-        nes->bus.cart = &nes->cart;
+        nes->bus.cart     = &nes->cart;
+        nes->ppu.chr_rom  = nes->cart.chr_rom;
+        nes->ppu.chr_size = nes->cart.chr_size;
+        nes->ppu.mirroring = nes->cart.mirroring;
     }
     return result;
 }
