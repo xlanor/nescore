@@ -20,6 +20,10 @@ void bus_init(Bus * bus) {
     bus->tick_ctx = NULL;
     bus->cart = NULL;
     bus->ppu = NULL;
+
+    bus->dma_pending = 0;
+    bus->dma_page = 0;
+    bus->dma_cycles = 0;
 }
 
 uint8_t bus_read(Bus *bus, uint16_t addr) {
@@ -54,6 +58,12 @@ void bus_write(Bus *bus, uint16_t addr, uint8_t val) {
     } else if (addr <= 0x3FFF) {
         ppu_write_register(bus->ppu, (addr & 0x07), val); 
     } else if (addr <= 0x4017) {
+        if (addr == 0x4014) {
+            // DMA
+            bus -> dma_pending = true;
+            bus->dma_page = val;
+            bus->dma_cycles = 513;
+        }
         // TODO: APU and I/O registers
     } else if (addr <= 0x401F) {
         // TODO: CPU test mode

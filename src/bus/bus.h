@@ -11,7 +11,11 @@ typedef struct {
     bus_tick_fn  tick;
     void        *tick_ctx;
     Cart        *cart;
-    PPU         *ppu;    // routes $2000–$3FFF to PPU registers
+    PPU         *ppu;
+    
+    bool    dma_pending;
+    uint8_t dma_page;
+    int dma_cycles; 
 } Bus;
 
 void bus_init(Bus* bus);

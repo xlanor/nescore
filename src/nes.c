@@ -37,14 +37,43 @@ int nes_load_rom(NES *nes, const char *path) {
 }
 
 void nes_reset(NES *nes) {
-    cpu_reset(&nes->cpu);  // arms reset_pending
-    cpu_step(&nes->cpu);   // runs the 7-cycle reset sequence, ticks PPU 21 times
+    cpu_reset(&nes->cpu);
+    // runs the 7-cycle reset sequence, ticks PPU 21 times 
+    cpu_step(&nes->cpu);
 }
 
 void nes_step_frame(NES *nes) {
     nes->ppu.frame_complete = false;
+    uint8_t dma_byte  = 0;
+    int dma_index = 0;
     while (!nes->ppu.frame_complete) {
-        cpu_tick(&nes->cpu);
+        if (!nes->bus.dma_pending){
+            cpu_tick(&nes->cpu);
+        }
+        else {
+            // DMA - 513 tick cycles on PPU
+            // PPU ticks 3x for every cpu tick, tick as normal.
+            ppu_tick(&nes->ppu);
+            ppu_tick(&nes->ppu);
+            ppu_tick(&nes->ppu);
+            nes->cpu.cycles++;
+            // 513 is alignment
+            if(nes->bus.dma_cycles != 513) {
+                if(nes->bus.dma_cycles %2 == 0) {
+                    // reads
+                    dma_byte = nes->bus.ram[nes->bus.dma_page * 256 + dma_index];
+                } else {
+                    // writes
+                    nes->bus.ppu->oam[dma_index] = dma_byte;
+                    dma_index++;
+                }
+            }
+            nes->bus.dma_cycles--;
+            if (nes->bus.dma_cycles == 0) {
+                nes->bus.dma_pending = false;
+            }
+        }
+      
     }
 }
 
